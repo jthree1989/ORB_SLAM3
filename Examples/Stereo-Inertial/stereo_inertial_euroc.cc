@@ -107,7 +107,7 @@ int main(int argc, char **argv)
         }
 
         // Find first imu to be considered, supposing imu measurements start first
-
+        // 计算和第一帧图片对应的IMU帧
         while(vTimestampsImu[seq][first_imu[seq]]<=vTimestampsCam[seq][0])
             first_imu[seq]++;
         first_imu[seq]--; // first imu measurement to be considered
@@ -145,7 +145,11 @@ int main(int argc, char **argv)
         cerr << "ERROR: Calibration parameters to rectify stereo are missing!" << endl;
         return -1;
     }
-
+    // NOTE 计算去畸变像素到畸变像素的map映射
+    // M1l： 左相机去畸变u->畸变u映射
+    // M2l： 左相机去畸变v->畸变v映射
+    // M1r： 右相机去畸变u->畸变u映射
+    // M2r： 右相机去畸变v->畸变v映射
     cv::Mat M1l,M2l,M1r,M2r;
     cv::initUndistortRectifyMap(K_l,D_l,R_l,P_l.rowRange(0,3).colRange(0,3),cv::Size(cols_l,rows_l),CV_32F,M1l,M2l);
     cv::initUndistortRectifyMap(K_r,D_r,R_r,P_r.rowRange(0,3).colRange(0,3),cv::Size(cols_r,rows_r),CV_32F,M1r,M2r);
@@ -159,6 +163,8 @@ int main(int argc, char **argv)
     cout.precision(17);
 
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
+    // argv[1] : 词袋文件ORBvoc.txt目录
+    // argv[2] : EuRoC.yaml数据集配置文件目录
     ORB_SLAM3::System SLAM(argv[1],argv[2],ORB_SLAM3::System::IMU_STEREO, true);
 
     cv::Mat imLeft, imRight, imLeftRect, imRightRect;
@@ -198,6 +204,7 @@ int main(int argc, char **argv)
             std::chrono::monotonic_clock::time_point t_Start_Rect = std::chrono::monotonic_clock::now();
     #endif
 #endif
+            // 利用之前的M1l,M2l和M1r,M2r进行图片去畸变
             cv::remap(imLeft,imLeftRect,M1l,M2l,cv::INTER_LINEAR);
             cv::remap(imRight,imRightRect,M1r,M2r,cv::INTER_LINEAR);
 
@@ -210,6 +217,7 @@ int main(int argc, char **argv)
             t_rect = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(t_End_Rect - t_Start_Rect).count();
             SLAM.InsertRectTime(t_rect);
 #endif
+            // 当前图像时间戳
             double tframe = vTimestampsCam[seq][ni];
 
             // Load imu measurements from previous frame
