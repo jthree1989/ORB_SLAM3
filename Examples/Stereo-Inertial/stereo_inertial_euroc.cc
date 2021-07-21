@@ -57,18 +57,18 @@ int main(int argc, char **argv)
         cout << "file name: " << file_name << endl;
     }
 
-    // Load all sequences:
-    int seq;
+    // Load all sequences:（支持加载多个数据集序列）
+    int seq;              // 数据集序列号
     vector< vector<string> > vstrImageLeft;
     vector< vector<string> > vstrImageRight;
     vector< vector<double> > vTimestampsCam;
     vector< vector<cv::Point3f> > vAcc, vGyro;
     vector< vector<double> > vTimestampsImu;
-    vector<int> nImages;
-    vector<int> nImu;
-    vector<int> first_imu(num_seq,0);
+    vector<int> nImages;  // 各数据集序列图片数量
+    vector<int> nImu;     // 各数据集IMU数量
+    vector<int> first_imu(num_seq,0); // 各数据集第一个IMU时间戳
 
-    vstrImageLeft.resize(num_seq);
+    vstrImageLeft.resize(num_seq); 
     vstrImageRight.resize(num_seq);
     vTimestampsCam.resize(num_seq);
     vAcc.resize(num_seq);
