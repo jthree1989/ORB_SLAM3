@@ -987,7 +987,7 @@ bool Tracking::ParseCamParamFile(cv::FileStorage &fSettings)
         if(!node.empty()  && node.isReal())
         {
             mThDepth = node.real();
-            mThDepth = mbf*mThDepth/fx;
+            mThDepth = mbf*mThDepth/fx; //?Leo mThDepth的值为基线距离乘以深度值
             cout << endl << "Depth Threshold (Close/Far Points): " << mThDepth << endl;
         }
         else
@@ -1064,7 +1064,7 @@ bool Tracking::ParseORBParamFile(cv::FileStorage &fSettings)
         std::cerr << "*ORBextractor.nLevels parameter doesn't exist or is not an integer*" << std::endl;
         b_miss_params = true;
     }
-
+    // 读取Fast角点初始响应阈值
     node = fSettings["ORBextractor.iniThFAST"];
     if(!node.empty() && node.isInt())
     {
@@ -1075,7 +1075,7 @@ bool Tracking::ParseORBParamFile(cv::FileStorage &fSettings)
         std::cerr << "*ORBextractor.iniThFAST parameter doesn't exist or is not an integer*" << std::endl;
         b_miss_params = true;
     }
-
+    // 读取Fast角点最小响应阈值
     node = fSettings["ORBextractor.minThFAST"];
     if(!node.empty() && node.isInt())
     {

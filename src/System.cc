@@ -160,7 +160,8 @@ cv::Mat System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const
     {
         unique_lock<mutex> lock(mMutexMode);
         if(mbActivateLocalizationMode)
-        {
+        { 
+            // 只进行Tracking功能，请求停止局部地图(LocalMapping)线程
             mpLocalMapper->RequestStop();
 
             // Wait until Local Mapping has effectively stopped
