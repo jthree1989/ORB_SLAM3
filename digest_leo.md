@@ -3,19 +3,19 @@
 ```c++
 cv::Mat System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timestamp, const vector<IMU::Point>& vImuMeas, string filename)
 ```
-## 1. ORBVocabulary -- DBoW词袋模块  
-## 2. KeyFrameDatabase -- 关键帧管理模块  
-## 3. Atlas -- 地图管理模块  
-### 3.1 Map -- 地图类
+## 1. `class ORBVocabulary` -- DBoW词袋模块  
+## 2. `class KeyFrameDatabase` -- 关键帧管理模块  
+## 3. `class Atlas` -- 地图管理模块  
+### 3.1 `class Map` -- 地图类
 
 ## 4. 显示模块
 
-  ### 4.1 FrameDrawer -- 帧显示类
-### 4.2 MapDrawer -- 地图显示类
+  ### 4.1 `class FrameDrawer` -- 帧显示类
+### 4.2 `class MapDrawer` -- 地图显示类
 
-### 4.3 Viewer -- 显示窗口类
+### 4.3 `class Viewer` -- 显示窗口类
 
-## 5. Tracking -- 前端模块
+## 5. `class Tracking` -- 前端模块
   Tracking构造函数包含：
    1. System/ORBVocabulary/FrameDrawer/MapDrawer/Altas/KeyFrameDatabase等类的对象作为参数;  
    2. 包含yaml配置文件作为参数，其中
@@ -35,7 +35,8 @@ cv::Mat System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const
    5. IMU输入函数`void Tracking::GrabImuData(const IMU::Point &imuMeasurement)`
       将IMU数据存入`std::list<IMU::Point> mlQueueImuData`容器
    6. 图像输入函数`cv::Mat Tracking::GrabImageStereo(const cv::Mat &imRectLeft, const cv::Mat &imRectRight, const double &timestamp, string filename)`
-      -- 函数返回当前帧的世界坐标系变换Tcw(即`mCurrentFrame.mTcw`);
+      #### 6.1 函数返回当前帧的世界坐标系变换Tcw(即`mCurrentFrame.mTcw`);
+      #### 6.2 构造`class Frame`类
       
    7. Tracking State:
    ```c++
@@ -50,6 +51,9 @@ cv::Mat System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const
         OK_KLT=5
     };
    ```
+   8. `class ORBextractor` -- ORB特征子提取类
+   9. `class GeometricCamera` -- 相机类
+   10. `class KeyFrame` -- 关键帧类
 
 
 ## 6. LocalMapping -- 局部地图模块（独立线程）

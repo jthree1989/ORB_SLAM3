@@ -1018,24 +1018,53 @@ void Frame::setIntegrated()
     mbImuPreintegrated = true;
 }
 
-Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeStamp, ORBextractor* extractorLeft, ORBextractor* extractorRight, ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth, GeometricCamera* pCamera, GeometricCamera* pCamera2, cv::Mat& Tlr,Frame* pPrevF, const IMU::Calib &ImuCalib)
-        :mpcpi(NULL), mpORBvocabulary(voc),mpORBextractorLeft(extractorLeft),mpORBextractorRight(extractorRight), mTimeStamp(timeStamp), mK(K.clone()), mDistCoef(distCoef.clone()), mbf(bf), mThDepth(thDepth),
-         mImuCalib(ImuCalib), mpImuPreintegrated(NULL), mpPrevFrame(pPrevF),mpImuPreintegratedFrame(NULL), mpReferenceKF(static_cast<KeyFrame*>(NULL)), mbImuPreintegrated(false), mpCamera(pCamera), mpCamera2(pCamera2), mTlr(Tlr)
+Frame::Frame(const cv::Mat &imLeft,               // 左目图像
+             const cv::Mat &imRight,              // 右目图像
+             const double &timeStamp,             // 时间戳
+             ORBextractor* extractorLeft,         // 左目ORBExtractor
+             ORBextractor* extractorRight,        // 右目ORBExtractor
+             ORBVocabulary* voc,                  // ORB词袋
+             cv::Mat &K,                          // 双目矫正后的相机内参（两相机一样）
+             cv::Mat &distCoef,                   // 双面矫正后的畸变参数（两相机一样）
+             const float &bf,                     // 双目基线乘以焦距（stereo baseline times fx）
+             const float &thDepth,                //? 深度阈值（Baseline times）
+             GeometricCamera* pCamera,            // 左相机对象指针 
+             GeometricCamera* pCamera2,           // 右相机对象指针 
+             cv::Mat& Tlr,                        // 从右相机到左相机的变换矩阵
+             Frame* pPrevF,                       // 上一帧Frame指针
+             const IMU::Calib &ImuCalib)          // IMU内外参及协防差矩阵
+        :mpcpi(NULL),                             // 存储pvqbgba及状态变量协防差矩阵的成员变量 
+         mpORBvocabulary(voc),
+         mpORBextractorLeft(extractorLeft),
+         mpORBextractorRight(extractorRight), 
+         mTimeStamp(timeStamp), 
+         mK(K.clone()), 
+         mDistCoef(distCoef.clone()), 
+         mbf(bf), mThDepth(thDepth),
+         mImuCalib(ImuCalib), 
+         mpImuPreintegrated(NULL),                // 储存上一个关键帧到当前帧的IMU预积分
+         mpPrevFrame(pPrevF), 
+         mpImuPreintegratedFrame(NULL),           // 储存上一个关键帧到上一帧的IMU预积分
+         mpReferenceKF(static_cast<KeyFrame*>(NULL)), //? 参考关键帧指针 
+         mbImuPreintegrated(false),               // 该帧是否完成预积分                             
+         mpCamera(pCamera), 
+         mpCamera2(pCamera2), 
+         mTlr(Tlr)
 {
-    imgLeft = imLeft.clone();
+    imgLeft = imLeft.clone();                     //^ TODO 深复制，安全但是低效率
     imgRight = imRight.clone();
 
     // Frame ID
     mnId=nNextId++;
 
     // Scale Level Info
-    mnScaleLevels = mpORBextractorLeft->GetLevels();
-    mfScaleFactor = mpORBextractorLeft->GetScaleFactor();
-    mfLogScaleFactor = log(mfScaleFactor);
-    mvScaleFactors = mpORBextractorLeft->GetScaleFactors();
-    mvInvScaleFactors = mpORBextractorLeft->GetInverseScaleFactors();
-    mvLevelSigma2 = mpORBextractorLeft->GetScaleSigmaSquares();
-    mvInvLevelSigma2 = mpORBextractorLeft->GetInverseScaleSigmaSquares();
+    mnScaleLevels = mpORBextractorLeft->GetLevels();                        // 金字塔总层级
+    mfScaleFactor = mpORBextractorLeft->GetScaleFactor();                   // scale系数大小
+    mfLogScaleFactor = log(mfScaleFactor);                                  //? 系数取log
+    mvScaleFactors = mpORBextractorLeft->GetScaleFactors();                 // 每一层的scale大小（向量）
+    mvInvScaleFactors = mpORBextractorLeft->GetInverseScaleFactors();       // 每一层的scale大小倒数（向量）
+    mvLevelSigma2 = mpORBextractorLeft->GetScaleSigmaSquares();             // 每一层的scale大小平方（向量）
+    mvInvLevelSigma2 = mpORBextractorLeft->GetInverseScaleSigmaSquares();   // 每一层的scale大小平方倒数（向量）
 
     // ORB extraction
 #ifdef REGISTER_TIMES
