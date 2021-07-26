@@ -388,6 +388,7 @@ void Frame::AssignFeaturesToGrid()
         for (unsigned int j=0; j<FRAME_GRID_ROWS;j++){
             mGrid[i][j].reserve(nReserve);
             if(Nleft != -1){
+                // 左目检测不到特征点，切到右目
                 mGridRight[i][j].reserve(nReserve);
             }
         }
@@ -414,9 +415,17 @@ void Frame::ExtractORB(int flag, const cv::Mat &im, const int x0, const int x1)
 {
     vector<int> vLapping = {x0,x1};
     if(flag==0)
-        monoLeft = (*mpORBextractorLeft)(im,cv::Mat(),mvKeys,mDescriptors,vLapping);
+        monoLeft = (*mpORBextractorLeft)(im,
+                                         cv::Mat(), // Mask
+                                         mvKeys,
+                                         mDescriptors,
+                                         vLapping);
     else
-        monoRight = (*mpORBextractorRight)(im,cv::Mat(),mvKeysRight,mDescriptorsRight,vLapping);
+        monoRight = (*mpORBextractorRight)(im,
+                                           cv::Mat(), 
+                                           mvKeysRight, 
+                                           mDescriptorsRight,
+                                           vLapping);
 }
 
 void Frame::SetPose(cv::Mat Tcw)
@@ -769,10 +778,13 @@ void Frame::ComputeImageBounds(const cv::Mat &imLeft)
 {
     if(mDistCoef.at<float>(0)!=0.0)
     {
+        //^ Element in mat is stored as Point2 in image coordinate,
+        //^ i.e. x is cols and y is rows, 
+        //^ see https://www.programmersought.com/article/99646007665/ for details
         cv::Mat mat(4,2,CV_32F);
-        mat.at<float>(0,0)=0.0; mat.at<float>(0,1)=0.0;
-        mat.at<float>(1,0)=imLeft.cols; mat.at<float>(1,1)=0.0;
-        mat.at<float>(2,0)=0.0; mat.at<float>(2,1)=imLeft.rows;
+        mat.at<float>(0,0)=0.0; mat.at<float>(0,1)=0.0;               // Left-top corner
+        mat.at<float>(1,0)=imLeft.cols; mat.at<float>(1,1)=0.0;       // Right-top corner
+        mat.at<float>(2,0)=0.0; mat.at<float>(2,1)=imLeft.rows;       // 
         mat.at<float>(3,0)=imLeft.cols; mat.at<float>(3,1)=imLeft.rows;
 
         mat=mat.reshape(2);
@@ -1070,8 +1082,20 @@ Frame::Frame(const cv::Mat &imLeft,               // 左目图像
 #ifdef REGISTER_TIMES
     std::chrono::steady_clock::time_point time_StartExtORB = std::chrono::steady_clock::now();
 #endif
-    thread threadLeft(&Frame::ExtractORB,this,0,imLeft,static_cast<KannalaBrandt8*>(mpCamera)->mvLappingArea[0],static_cast<KannalaBrandt8*>(mpCamera)->mvLappingArea[1]);
-    thread threadRight(&Frame::ExtractORB,this,1,imRight,static_cast<KannalaBrandt8*>(mpCamera2)->mvLappingArea[0],static_cast<KannalaBrandt8*>(mpCamera2)->mvLappingArea[1]);
+    // 输出为左目特征点及特征描述子(mvKeys/mDescriptors)
+    //      右目特征点及特征描述子(mvKeysRight/mDescriptorsRight)
+    thread threadLeft(&Frame::ExtractORB,
+                      this, 
+                      0,
+                      imLeft,
+                      static_cast<KannalaBrandt8*>(mpCamera)->mvLappingArea[0], //? Use dynamic_cast for safety
+                      static_cast<KannalaBrandt8*>(mpCamera)->mvLappingArea[1]);
+    thread threadRight(&Frame::ExtractORB,
+                       this,
+                       1,
+                       imRight,
+                       static_cast<KannalaBrandt8*>(mpCamera2)->mvLappingArea[0],
+                       static_cast<KannalaBrandt8*>(mpCamera2)->mvLappingArea[1]);
     threadLeft.join();
     threadRight.join();
 #ifdef REGISTER_TIMES
@@ -1090,6 +1114,7 @@ Frame::Frame(const cv::Mat &imLeft,               // 左目图像
     // This is done only for the first Frame (or after a change in the calibration)
     if(mbInitialComputations)
     {
+        // 计算左目图像最大外接矩形
         ComputeImageBounds(imLeft);
 
         mfGridElementWidthInv=static_cast<float>(FRAME_GRID_COLS)/(mnMaxX-mnMinX);
@@ -1133,6 +1158,7 @@ Frame::Frame(const cv::Mat &imLeft,               // 左目图像
 #endif
 
     //Put all descriptors in the same matrix
+    //^ 左右目特征描述子合并
     cv::vconcat(mDescriptors,mDescriptorsRight,mDescriptors);
 
     mvpMapPoints = vector<MapPoint*>(N,static_cast<MapPoint*>(nullptr));

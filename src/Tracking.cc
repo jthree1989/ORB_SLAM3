@@ -1410,24 +1410,31 @@ void Tracking::PreintegrateIMU()
 
     while(true)
     {
-        bool bSleep = false;
+        // bSleep is useless code and never be reached
+        // bool bSleep = false;
         {
-            unique_lock<mutex> lock(mMutexImuQueue);
+            unique_lock<mutex> lock(mMutexImuQueue);  //! 锁范围应该上提
             if(!mlQueueImuData.empty())
             {
                 IMU::Point* m = &mlQueueImuData.front();
                 cout.precision(17);
                 if(m->t<mCurrentFrame.mpPrevFrame->mTimeStamp-0.001l)
                 {
+                    // IMU数据早于上一帧，直接丢弃
                     mlQueueImuData.pop_front();
                 }
                 else if(m->t<mCurrentFrame.mTimeStamp-0.001l)
                 {
+                    // IMU数据介于上一帧和当前帧之间，加入预积分buffer
+                    // 从buffer中删除，因为必定不会再使用
                     mvImuFromLastFrame.push_back(*m);
                     mlQueueImuData.pop_front();
                 }
                 else
                 {
+                    // IMU数据晚于当前帧，加入预计分buffer
+                    // 不从buffer删除，因为下一帧有可能使用
+                    // 跳出循环，因为所需数据已获得
                     mvImuFromLastFrame.push_back(*m);
                     break;
                 }
@@ -1435,11 +1442,11 @@ void Tracking::PreintegrateIMU()
             else
             {
                 break;
-                bSleep = true;
+                // bSleep = true;
             }
         }
-        if(bSleep)
-            usleep(500);
+        // if(bSleep)
+        //     usleep(500);
     }
 
 
@@ -1673,10 +1680,12 @@ void Tracking::Track()
 
     Map* pCurrentMap = mpAtlas->GetCurrentMap();
 
+    // 检测图像时序问题，并进行相应处理
     if(mState!=NO_IMAGES_YET)
     {
         if(mLastFrame.mTimeStamp>mCurrentFrame.mTimeStamp)
         {
+            // 图像时序颠倒
             cerr << "ERROR: Frame with a timestamp older than previous frame detected!" << endl;
             unique_lock<mutex> lock(mMutexImuQueue);
             mlQueueImuData.clear();
@@ -1685,6 +1694,7 @@ void Tracking::Track()
         }
         else if(mCurrentFrame.mTimeStamp>mLastFrame.mTimeStamp+1.0)
         {
+            // 时序有大的gap
             cout << "id last: " << mLastFrame.mnId << "    id curr: " << mCurrentFrame.mnId << endl;
             if(mpAtlas->isInertial())
             {
@@ -1712,17 +1722,18 @@ void Tracking::Track()
         }
     }
 
-
+    // 如果存在关键帧(即Bias优化有效)，设置新的Bias
     if ((mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO) && mpLastKeyFrame)
         mCurrentFrame.SetNewBias(mpLastKeyFrame->GetImuBias());
-
+    // 运行此处说明系统接收到了有效的图像帧，系统从NO_IMGAES_YET状态切换到NOT_INITIALIZED状态
     if(mState==NO_IMAGES_YET)
     {
         mState = NOT_INITIALIZED;
     }
 
     mLastProcessedState=mState;
-
+    //? mbCreatedMap什么含义呢？
+    // 进行相邻图像帧以及上一关键帧到当前帧的预积分
     if ((mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO) && !mbCreatedMap)
     {
 #ifdef REGISTER_TIMES

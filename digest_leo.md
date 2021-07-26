@@ -31,19 +31,38 @@ cv::Mat System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const
    3. `InformOnlyTracking(const bool &flag)`:是否开启局部地图模块？ 
        true：只有tracking没有局部地图
        false： 开启局部地图
+       
    4. `Reset()` `ResetActiveMap()`函数
+
    5. IMU输入函数`void Tracking::GrabImuData(const IMU::Point &imuMeasurement)`
       将IMU数据存入`std::list<IMU::Point> mlQueueImuData`容器
+      
    6. 图像输入函数`cv::Mat Tracking::GrabImageStereo(const cv::Mat &imRectLeft, const cv::Mat &imRectRight, const double &timestamp, string filename)`
       #### 6.1 函数返回当前帧的世界坐标系变换Tcw(即`mCurrentFrame.mTcw`);
-      #### 6.2 构造`class Frame`类
-      
+      #### 6.2 构造`class Frame`类;
+
+      - 多线程调用`Frame::ExtractORB`提取双目特征点 -> 左右目特征点和特征描述子vector
+      - 计算左右目内外参数，`mTrl`/`mTlr`等
+      - 合并左右特征描述子
+      - 特征点网格划分`AssignFeaturesToGrid()`
+      - 特征点去畸变`UndistortKeyPoints()`
+
+      #### 6.3 Tracking类的主函数 `void Tracking::Track()`;
+    
+      - 检测图像时序问题，并作相应处理
+      - 将系统Tracking状态从从NO_IMGAES_YET状态切换到NOT_INITIALIZED状态
+      - IMU预积分`void Tracking::PreintegrateIMU()` -- `class Preintegrated`
+        - 相邻两帧之间的IMU预积分(`pImuPreintegratedFromLastFrame`)；
+        - 如果存在上一个关键帧，进行关键帧到当前帧的预积分(`mpImuPreintegratedFromLastKF`)；
+
+
+​      
    7. Tracking State:
    ```c++
     // Tracking states
     enum eTrackingState{
         SYSTEM_NOT_READY=-1,
-        NO_IMAGES_YET=0,
+        NO_IMAGES_YET=0,      // 未接收到有效图像帧
         NOT_INITIALIZED=1,
         OK=2,
         RECENTLY_LOST=3,
@@ -51,9 +70,9 @@ cv::Mat System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const
         OK_KLT=5
     };
    ```
-   8. `class ORBextractor` -- ORB特征子提取类
-   9. `class GeometricCamera` -- 相机类
-   10. `class KeyFrame` -- 关键帧类
+   1. `class ORBextractor` -- ORB特征子提取类
+   2. `class GeometricCamera` -- 相机类
+   3.  `class KeyFrame` -- 关键帧类
 
 
 ## 6. LocalMapping -- 局部地图模块（独立线程）
