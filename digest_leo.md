@@ -43,17 +43,21 @@ cv::Mat System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const
 
       - 多线程调用`Frame::ExtractORB`提取双目特征点 -> 左右目特征点和特征描述子vector
       - 计算左右目内外参数，`mTrl`/`mTlr`等
+      - 双目三角化特征点`ComputeStereoFishEyeMatches()`
       - 合并左右特征描述子
       - 特征点网格划分`AssignFeaturesToGrid()`
       - 特征点去畸变`UndistortKeyPoints()`
 
-      #### 6.3 Tracking类的主函数 `void Tracking::Track()`;
+      #### 6.3 **Tracking类的主函数** `void Tracking::Track()`;
     
       - 检测图像时序问题，并作相应处理
       - 将系统Tracking状态从从NO_IMGAES_YET状态切换到NOT_INITIALIZED状态
       - IMU预积分`void Tracking::PreintegrateIMU()` -- `class Preintegrated`
-        - 相邻两帧之间的IMU预积分(`pImuPreintegratedFromLastFrame`)；
-        - 如果存在上一个关键帧，进行关键帧到当前帧的预积分(`mpImuPreintegratedFromLastKF`)；
+        - 相邻两帧之间的IMU预积分(`mCurrentFrame.mpImuPreintegratedFrame = pImuPreintegratedFromLastFrame;`)；
+        - 如果存在上一个关键帧，进行关键帧到当前帧的预积分(`mCurrentFrame.mpImuPreintegrated = mpImuPreintegratedFromLastKF`)；
+      - 如果未初始化(`mState==NOT_INITIALIZED`)，进入初始化流程
+        - 双目初始化`void Tracking::StereoInitialization()` 
+      - 否则进入跟踪(Track)流程
 
 
 ​      

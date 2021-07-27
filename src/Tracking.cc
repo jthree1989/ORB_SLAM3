@@ -1739,6 +1739,8 @@ void Tracking::Track()
 #ifdef REGISTER_TIMES
         std::chrono::steady_clock::time_point time_StartPreIMU = std::chrono::steady_clock::now();
 #endif
+        // 相邻两帧之间的IMU预积分
+        // 如果存在上一个关键帧，进行关键帧到当前帧的预积分
         PreintegrateIMU();
 #ifdef REGISTER_TIMES
         std::chrono::steady_clock::time_point time_EndPreIMU = std::chrono::steady_clock::now();
@@ -1764,9 +1766,8 @@ void Tracking::Track()
         mbMapUpdated = true;
     }
 
-
     if(mState==NOT_INITIALIZED)
-    {
+    {    //! 进入初始化过程
         if(mSensor==System::STEREO || mSensor==System::RGBD || mSensor==System::IMU_STEREO)
             StereoInitialization();
         else
@@ -1788,7 +1789,7 @@ void Tracking::Track()
         }
     }
     else
-    {
+    {   //! 进入跟踪流程
         // System is initialized. Track Frame.
         bool bOK;
 
@@ -2186,25 +2187,26 @@ void Tracking::Track()
 
 void Tracking::StereoInitialization()
 {
-    if(mCurrentFrame.N>500)
+    if(mCurrentFrame.N>500) // 双目提取特征点数目需大于500，方可进行初始化
     {
         if (mSensor == System::IMU_STEREO)
         {
-            if (!mCurrentFrame.mpImuPreintegrated || !mLastFrame.mpImuPreintegrated)
+            if (!mCurrentFrame.mpImuPreintegrated  // 上一个关键帧到当前帧的预积分 
+                || !mLastFrame.mpImuPreintegrated) // 上个关键帧到上一帧的预积分
             {
+                // 初始化至少满足两图像帧
                 cout << "not IMU meas" << endl;
                 return;
             }
-
-            if (cv::norm(mCurrentFrame.mpImuPreintegratedFrame->avgA-mLastFrame.mpImuPreintegratedFrame->avgA)<0.5)
+            // 上一帧到当前帧的平均加速度 mCurrentFrame.mpImuPreintegratedFrame->avgA
+            // 上上帧到上一帧的平均加速度 mLastFrame.mpImuPreintegratedFrame->avgA
+            if (cv::norm(mCurrentFrame.mpImuPreintegratedFrame->avgA - mLastFrame.mpImuPreintegratedFrame->avgA)<0.5)
             {
                 cout << "not enough acceleration" << endl;
                 return;
             }
-
-            if(mpImuPreintegratedFromLastKF)
-                delete mpImuPreintegratedFromLastKF;
-
+            //^ 初始化过程，所以需删除之前的到上一关键帧的预积分变量, 重新创建预积分对象
+            if(mpImuPreintegratedFromLastKF) delete mpImuPreintegratedFromLastKF;
             mpImuPreintegratedFromLastKF = new IMU::Preintegrated(IMU::Bias(),*mpImuCalib);
             mCurrentFrame.mpImuPreintegrated = mpImuPreintegratedFromLastKF;
         }
@@ -2220,13 +2222,15 @@ void Tracking::StereoInitialization()
             mCurrentFrame.SetPose(cv::Mat::eye(4,4,CV_32F));
 
         // Create KeyFrame
-        KeyFrame* pKFini = new KeyFrame(mCurrentFrame,mpAtlas->GetCurrentMap(),mpKeyFrameDB);
+        // 第一帧必然是图像帧
+        KeyFrame* pKFini = new KeyFrame(mCurrentFrame, mpAtlas->GetCurrentMap(), mpKeyFrameDB);
 
         // Insert KeyFrame in the map
         mpAtlas->AddKeyFrame(pKFini);
 
         // Create MapPoints and asscoiate to KeyFrame
         if(!mpCamera2){
+            // 单目
             for(int i=0; i<mCurrentFrame.N;i++)
             {
                 float z = mCurrentFrame.mvDepth[i];
@@ -2244,12 +2248,14 @@ void Tracking::StereoInitialization()
                 }
             }
         } else{
+            // 双目
             for(int i = 0; i < mCurrentFrame.Nleft; i++){
                 int rightIndex = mCurrentFrame.mvLeftToRightMatch[i];
                 if(rightIndex != -1){
+                    //^ 将成功双目三角化的特征点构造成MapPoint
                     cv::Mat x3D = mCurrentFrame.mvStereo3Dpoints[i];
 
-                    MapPoint* pNewMP = new MapPoint(x3D,pKFini,mpAtlas->GetCurrentMap());
+                    MapPoint* pNewMP = new MapPoint(x3D, pKFini, mpAtlas->GetCurrentMap());
 
                     pNewMP->AddObservation(pKFini,i);
                     pNewMP->AddObservation(pKFini,rightIndex + mCurrentFrame.Nleft);
@@ -2268,7 +2274,7 @@ void Tracking::StereoInitialization()
         }
 
         Verbose::PrintMess("New Map created with " + to_string(mpAtlas->MapPointsInMap()) + " points", Verbose::VERBOSITY_QUIET);
-
+        //^ LocalMapping线程插入关键帧
         mpLocalMapper->InsertKeyFrame(pKFini);
 
         mLastFrame = Frame(mCurrentFrame);

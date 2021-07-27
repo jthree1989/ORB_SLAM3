@@ -1150,6 +1150,7 @@ Frame::Frame(const cv::Mat &imLeft,               // 左目图像
 #ifdef REGISTER_TIMES
     std::chrono::steady_clock::time_point time_StartStereoMatches = std::chrono::steady_clock::now();
 #endif
+    //^ 双目三角化特征点
     ComputeStereoFishEyeMatches();
 #ifdef REGISTER_TIMES
     std::chrono::steady_clock::time_point time_EndStereoMatches = std::chrono::steady_clock::now();
