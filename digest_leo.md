@@ -58,6 +58,10 @@ cv::Mat System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const
       - 如果未初始化(`mState==NOT_INITIALIZED`)，进入初始化流程
         - 双目初始化`void Tracking::StereoInitialization()` 
       - 否则进入跟踪(Track)流程
+        - `mbOnlyTracking == false` 局部地图(local map)可用，使用局部地图进行Tracking
+          - 处理Tracking处于正常状态的情况
+          - 处理Tracking处于异常状态的情况
+        - `mbOnlyTracking == true`  局部地图(local map)不可用，使用VO进行Tracking
 
 
 ​      

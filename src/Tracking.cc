@@ -1798,25 +1798,30 @@ void Tracking::Track()
 #endif
 
         // Initial camera pose estimation using motion model or relocalization (if tracking is lost)
-        if(!mbOnlyTracking)
+
+        if(!mbOnlyTracking) //^ 使用局部地图进行Tracking
         {
 
             // State OK
             // Local Mapping is activated. This is the normal behaviour, unless
             // you explicitly activate the "only tracking" mode.
-            if(mState==OK)
+            if(mState==OK) //^ 初始化完成，tracking处于正常状态
             {
 
                 // Local Mapping might have changed some MapPoints tracked in last frame
+                // 检查上一帧的MapPoint是否被修改更新
                 CheckReplacedInLastFrame();
 
-                if((mVelocity.empty() && !pCurrentMap->isImuInitialized()) || mCurrentFrame.mnId<mnLastRelocFrameId+2)
+                if((mVelocity.empty() && !pCurrentMap->isImuInitialized())  //^ 没有帧间速度且IMU没有初始化完成 
+                    || mCurrentFrame.mnId<mnLastRelocFrameId+2)             //^ 或者当前帧在刚刚重定位后不久(< 2)
                 {
+                    //^ 使用参考关键字进行Tracking
                     //Verbose::PrintMess("TRACK: Track with respect to the reference KF ", Verbose::VERBOSITY_DEBUG);
                     bOK = TrackReferenceKeyFrame();
                 }
                 else
                 {
+                    //^ 使用运动模型进行Tracking
                     //Verbose::PrintMess("TRACK: Track with motion model", Verbose::VERBOSITY_DEBUG);
                     bOK = TrackWithMotionModel();
                     if(!bOK)
@@ -1824,14 +1829,14 @@ void Tracking::Track()
                 }
 
 
-                if (!bOK)
+                if (!bOK) //^ Tracking失败
                 {
-                    if ( mCurrentFrame.mnId<=(mnLastRelocFrameId+mnFramesToResetIMU) &&
-                         (mSensor==System::IMU_MONOCULAR || mSensor==System::IMU_STEREO))
+                    if ( mCurrentFrame.mnId<=(mnLastRelocFrameId+mnFramesToResetIMU) &&   //? 当前帧是重定位后不久的帧，IMU来不及RESET
+                         (mSensor==System::IMU_MONOCULAR || mSensor==System::IMU_STEREO)) // 有IMU
                     {
                         mState = LOST;
                     }
-                    else if(pCurrentMap->KeyFramesInMap()>10)
+                    else if(pCurrentMap->KeyFramesInMap()>10) //^ 当前地图有大于10个关键帧，处于刚刚丢失状态
                     {
                         cout << "KF in map: " << pCurrentMap->KeyFramesInMap() << endl;
                         mState = RECENTLY_LOST;
@@ -1844,21 +1849,22 @@ void Tracking::Track()
                     }
                 }
             }
-            else
+            else //^ 处理tracking处于异常状态的情况
             {
 
-                if (mState == RECENTLY_LOST)
+                if (mState == RECENTLY_LOST)  //^ 刚刚跟丢状态
                 {
                     Verbose::PrintMess("Lost for a short time", Verbose::VERBOSITY_NORMAL);
 
                     bOK = true;
+                    // 如果IMU已经初始化，使用IMU滚动预测状态
                     if((mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO))
                     {
                         if(pCurrentMap->isImuInitialized())
                             PredictStateIMU();
                         else
                             bOK = false;
-
+                        // 如果当前时间到设为刚刚丢失状态时间大于time_recently_lost（5秒），状态设为丢失
                         if (mCurrentFrame.mTimeStamp-mTimeStampLost>time_recently_lost)
                         {
                             mState = LOST;
@@ -1866,7 +1872,7 @@ void Tracking::Track()
                             bOK=false;
                         }
                     }
-                    else
+                    else // 没有IMU，使用重定位
                     {
                         // TODO fix relocalization
                         bOK = Relocalization();
@@ -1878,17 +1884,19 @@ void Tracking::Track()
                         }
                     }
                 }
-                else if (mState == LOST)
+                else if (mState == LOST)      //^ 完全丢失
                 {
 
                     Verbose::PrintMess("A new map is started...", Verbose::VERBOSITY_NORMAL);
 
                     if (pCurrentMap->KeyFramesInMap()<10)
-                    {
+                    {   // 地图太小，重置地图
                         mpSystem->ResetActiveMap();
                         cout << "Reseting current map..." << endl;
-                    }else
+                    }else{
+                        // Atlas里保存当前地图
                         CreateMapInAtlas();
+                    }
 
                     if(mpLastKeyFrame)
                         mpLastKeyFrame = static_cast<KeyFrame*>(NULL);
@@ -1900,18 +1908,19 @@ void Tracking::Track()
             }
 
         }
-        else
+        else //^ 不使用局部地图进行Tracking
         {
             // Localization Mode: Local Mapping is deactivated (TODO Not available in inertial mode)
-            if(mState==LOST)
+            if(mState==LOST)  //^ Tracking处于丢失状态
             {
+                // 进行重定位
                 if(mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO)
                     Verbose::PrintMess("IMU. State LOST", Verbose::VERBOSITY_NORMAL);
                 bOK = Relocalization();
             }
-            else
-            {
-                if(!mbVO)
+            else  //^ Tracking处于还未丢失状态
+            { 
+                if(!mbVO) //^ 不使用纯VO进行Tracking，即使用运动模型或者参考关键帧进行Tracking
                 {
                     // In last frame we tracked enough MapPoints in the map
                     if(!mVelocity.empty())
@@ -1923,7 +1932,7 @@ void Tracking::Track()
                         bOK = TrackReferenceKeyFrame();
                     }
                 }
-                else
+                else //^ 同时使用VO和重定位两种方法Tracking
                 {
                     // In last frame we tracked mainly "visual odometry" points.
 
@@ -1945,7 +1954,7 @@ void Tracking::Track()
                     }
                     bOKReloc = Relocalization();
 
-                    if(bOKMM && !bOKReloc)
+                    if(bOKMM && !bOKReloc) // VO成功，重定位失败
                     {
                         mCurrentFrame.SetPose(TcwMM);
                         mCurrentFrame.mvpMapPoints = vpMPsMM;
@@ -1962,7 +1971,7 @@ void Tracking::Track()
                             }
                         }
                     }
-                    else if(bOKReloc)
+                    else if(bOKReloc) // 重定位成功
                     {
                         mbVO = false;
                     }
@@ -2006,9 +2015,9 @@ void Tracking::Track()
                 bOK = TrackLocalMap();
         }
 
-        if(bOK)
-            mState = OK;
-        else if (mState == OK)
+        if(bOK){
+          mState = OK;
+        }else if (mState == OK)
         {
             if (mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO)
             {
@@ -2031,7 +2040,10 @@ void Tracking::Track()
         }
 
         // Save frame if recent relocalization, since they are used for IMU reset (as we are making copy, it shluld be once mCurrFrame is completely modified)
-        if((mCurrentFrame.mnId<(mnLastRelocFrameId+mnFramesToResetIMU)) && (mCurrentFrame.mnId > mnFramesToResetIMU) && ((mSensor == System::IMU_MONOCULAR) || (mSensor == System::IMU_STEREO)) && pCurrentMap->isImuInitialized())
+        if((mCurrentFrame.mnId<(mnLastRelocFrameId+mnFramesToResetIMU)) 
+            && (mCurrentFrame.mnId > mnFramesToResetIMU) 
+            && ((mSensor == System::IMU_MONOCULAR) || (mSensor == System::IMU_STEREO)) 
+            && pCurrentMap->isImuInitialized())
         {
             // TODO check this situation
             Verbose::PrintMess("Saving pointer to frame. imu needs reset...", Verbose::VERBOSITY_NORMAL);
@@ -2292,7 +2304,7 @@ void Tracking::StereoInitialization()
         mpAtlas->GetCurrentMap()->mvpKeyFrameOrigins.push_back(pKFini);
 
         mpMapDrawer->SetCurrentCameraPose(mCurrentFrame.mTcw);
-
+        // 初始化成功
         mState=OK;
     }
 }
