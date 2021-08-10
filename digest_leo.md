@@ -60,8 +60,17 @@ cv::Mat System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const
       - 否则进入跟踪(Track)流程
         - `mbOnlyTracking == false` 局部地图(local map)可用，使用局部地图进行Tracking
           - 处理Tracking处于正常状态的情况
+            - 有速度 -> `TrackWithMotionModel()`
+            - 没有速度或者`TrackWithMotionModel()`失败 -> `TrackReferenceKeyFrame`
           - 处理Tracking处于异常状态的情况
+            - `RECENTLY_LOST` -> 使用IMU滚动预测状态
+            - `LOST` -> Atlas保存地图
         - `mbOnlyTracking == true`  局部地图(local map)不可用，使用VO进行Tracking
+          - `LOST` 状态 -> `Relocalization()`
+          - 非`LOST`状态
+            - `mbVO == false` -> 有速度使用`TrackWithMotionModel()`否则使用`TrackReferenceKeyFrame()`
+            - `mbVO == true` -> 同时使用`TrackWithMotionModel()`和`TrackReferenceKeyFrame()`
+        - 判断`mbOnlyTracking`和`mbVO`状态，决定是否执行`TrackLocalMap()` 
 
 
 ​      

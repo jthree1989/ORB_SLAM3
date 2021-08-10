@@ -1815,7 +1815,7 @@ void Tracking::Track()
                 if((mVelocity.empty() && !pCurrentMap->isImuInitialized())  //^ 没有帧间速度且IMU没有初始化完成 
                     || mCurrentFrame.mnId<mnLastRelocFrameId+2)             //^ 或者当前帧在刚刚重定位后不久(< 2)
                 {
-                    //^ 使用参考关键字进行Tracking
+                    //^ 使用参考关键帧进行Tracking
                     //Verbose::PrintMess("TRACK: Track with respect to the reference KF ", Verbose::VERBOSITY_DEBUG);
                     bOK = TrackReferenceKeyFrame();
                 }
@@ -1996,6 +1996,7 @@ void Tracking::Track()
         std::chrono::steady_clock::time_point time_StartLMTrack = std::chrono::steady_clock::now();
 #endif
         // If we have an initial estimation of the camera pose and matching. Track the local map.
+        // ^判断mbOnlyTracking和mbVO状态，决定是否执行TrackLocalMap
         if(!mbOnlyTracking)
         {
             if(bOK)
@@ -2017,7 +2018,7 @@ void Tracking::Track()
 
         if(bOK){
           mState = OK;
-        }else if (mState == OK)
+        }else if (mState == OK) //^ bOK == false 但是当前状态为OK，状态设为RECENTLY_LOST
         {
             if (mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO)
             {
