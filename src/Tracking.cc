@@ -1766,8 +1766,7 @@ void Tracking::Track()
         mbMapUpdated = true;
     }
 
-    if(mState==NOT_INITIALIZED)
-    {    //! 进入初始化过程
+    if(mState==NOT_INITIALIZED){  //! 进入初始化过程
         if(mSensor==System::STEREO || mSensor==System::RGBD || mSensor==System::IMU_STEREO)
             StereoInitialization();
         else
@@ -1788,8 +1787,8 @@ void Tracking::Track()
             mnFirstFrameId = mCurrentFrame.mnId;
         }
     }
-    else
-    {   //! 进入跟踪流程
+    else //! 进入跟踪流程
+    {   
         // System is initialized. Track Frame.
         bool bOK;
 
@@ -2041,6 +2040,7 @@ void Tracking::Track()
         }
 
         // Save frame if recent relocalization, since they are used for IMU reset (as we are making copy, it shluld be once mCurrFrame is completely modified)
+        //^ 刚刚完成重定位，需要保存当前帧由于IMU Reset
         if((mCurrentFrame.mnId<(mnLastRelocFrameId+mnFramesToResetIMU)) 
             && (mCurrentFrame.mnId > mnFramesToResetIMU) 
             && ((mSensor == System::IMU_MONOCULAR) || (mSensor == System::IMU_STEREO)) 
@@ -2079,7 +2079,11 @@ void Tracking::Track()
         mpFrameDrawer->Update(this);
         if(!mCurrentFrame.mTcw.empty())
             mpMapDrawer->SetCurrentCameraPose(mCurrentFrame.mTcw);
-
+        //^ 跟踪成功
+        // 1) 更新运动模型
+        // 2) 删除当前帧没有被观察到的MapPoint
+        // 3) 删除临时的MapPoint
+        // 4) 判断是否需要插入关键帧
         if(bOK || mState==RECENTLY_LOST)
         {
             // Update motion model
@@ -2100,12 +2104,14 @@ void Tracking::Track()
             for(int i=0; i<mCurrentFrame.N; i++)
             {
                 MapPoint* pMP = mCurrentFrame.mvpMapPoints[i];
-                if(pMP)
+                if(pMP){
                     if(pMP->Observations()<1)
                     {
                         mCurrentFrame.mvbOutlier[i] = false;
                         mCurrentFrame.mvpMapPoints[i]=static_cast<MapPoint*>(NULL);
                     }
+
+                }
             }
 
             // Delete temporal MapPoints
@@ -2145,7 +2151,7 @@ void Tracking::Track()
                     mCurrentFrame.mvpMapPoints[i]=static_cast<MapPoint*>(NULL);
             }
         }
-
+        //^ 跟踪失败，reset
         // Reset if the camera get lost soon after initialization
         if(mState==LOST)
         {
@@ -2173,8 +2179,9 @@ void Tracking::Track()
 
 
 
-
-    if(mState==OK || mState==RECENTLY_LOST)
+    //^ 判断跟踪流程后的状态
+    // OK或者接近丢失状态
+    if(mState==OK || mState==RECENTLY_LOST) 
     {
         // Store frame pose information to retrieve the complete camera trajectory afterwards.
         if(!mCurrentFrame.mTcw.empty())

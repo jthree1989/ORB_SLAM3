@@ -71,6 +71,8 @@ cv::Mat System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const
             - `mbVO == false` -> 有速度使用`TrackWithMotionModel()`否则使用`TrackReferenceKeyFrame()`
             - `mbVO == true` -> 同时使用`TrackWithMotionModel()`和`TrackReferenceKeyFrame()`
         - 判断`mbOnlyTracking`和`mbVO`状态，决定是否执行`TrackLocalMap()` 
+        - 如果刚刚完成重定位，需要保存当前帧由于IMU Reset
+      - 如果跟踪流程后状态处于OK或者RECENTLY_LOST`if(mState==OK || mState==RECENTLY_LOST)`
 
 
 ​      
