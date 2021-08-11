@@ -10,7 +10,7 @@ cv::Mat System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const
 
 ## 4. 显示模块
 
-  ### 4.1 `class FrameDrawer` -- 帧显示类
+### 4.1 `class FrameDrawer` -- 帧显示类
 ### 4.2 `class MapDrawer` -- 地图显示类
 
 ### 4.3 `class Viewer` -- 显示窗口类
@@ -89,9 +89,15 @@ cv::Mat System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const
         OK_KLT=5
     };
    ```
-   1. `class ORBextractor` -- ORB特征子提取类
-   2. `class GeometricCamera` -- 相机类
-   3.  `class KeyFrame` -- 关键帧类
+   8. `class Frame` -- 图像帧类
+      - 成员变量
+      - 成员函数
+        - default constructor `Frame()`
+        - copy constructor `Frame(const Frame& frame)`
+        - constructor for multiple cameras 
+   9.  `class ORBextractor` -- ORB特征子提取类
+   10. `class GeometricCamera` -- 相机类
+   11. `class KeyFrame` -- 关键帧类
 
 
 ## 6. LocalMapping -- 局部地图模块（独立线程）

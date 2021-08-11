@@ -54,6 +54,23 @@ public:
     // Constructor for stereo cameras.
     Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeStamp, ORBextractor* extractorLeft, ORBextractor* extractorRight, ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth, GeometricCamera* pCamera,Frame* pPrevF = static_cast<Frame*>(NULL), const IMU::Calib &ImuCalib = IMU::Calib());
 
+    //^ Constructor for stereo cameras and imu
+    Frame(const cv::Mat &imLeft,                          //^ 左目
+          const cv::Mat &imRight,                         //^ 右目
+          const double &timeStamp,                        //^ 时间戳
+          ORBextractor* extractorLeft,                    //^ 左目特征点提取
+          ORBextractor* extractorRight,                   //^ 右目特征点提取
+          ORBVocabulary* voc,                             //^ 词袋
+          cv::Mat &K,                                     //^ 双面矫正后内参
+          cv::Mat &distCoef,                              //^ 双面矫正后畸变
+          const float &bf,                                //^ baseline * focal_length 
+          const float &thDepth,                           //^ depth 
+          GeometricCamera* pCamera,                       //^ 左目真实内参 
+          GeometricCamera* pCamera2,                      //^ 右目真实内参
+          cv::Mat& Tlr,                                   //^ 外参
+          Frame* pPrevF = static_cast<Frame*>(NULL),      //^ 上一帧指针
+          const IMU::Calib &ImuCalib = IMU::Calib());     //^ IMU参数
+
     // Constructor for RGB-D cameras.
     Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth, GeometricCamera* pCamera,Frame* pPrevF = static_cast<Frame*>(NULL), const IMU::Calib &ImuCalib = IMU::Calib());
 
@@ -298,7 +315,6 @@ public:
     cv::Mat mTlr, mRlr, mtlr, mTrl;
     cv::Matx34f mTrlx, mTlrx;
 
-    Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeStamp, ORBextractor* extractorLeft, ORBextractor* extractorRight, ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth, GeometricCamera* pCamera, GeometricCamera* pCamera2, cv::Mat& Tlr,Frame* pPrevF = static_cast<Frame*>(NULL), const IMU::Calib &ImuCalib = IMU::Calib());
 
     //Stereo fisheye
     void ComputeStereoFishEyeMatches();
