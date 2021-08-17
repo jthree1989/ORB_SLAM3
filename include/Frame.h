@@ -135,8 +135,8 @@ public:
 
     // Backprojects a keypoint (if stereo/depth info available) into 3D world coordinates.
     cv::Mat UnprojectStereo(const int &i);
-
-    ConstraintPoseImu* mpcpi;
+    // 储存pvqbgba及协防差矩阵
+    ConstraintPoseImu* mpcpi;         
 
     bool imuIsPreintegrated();
     void setIntegrated();
@@ -154,32 +154,29 @@ public:
     double mTimeStamp;
 
     // Calibration matrix and OpenCV distortion parameters.
-    cv::Mat mK;
+    cv::Mat mK; //^ 双目矫正后的相机内参（两相机一样）
     static float fx;
     static float fy;
     static float cx;
     static float cy;
     static float invfx;
     static float invfy;
-    cv::Mat mDistCoef;
+    cv::Mat mDistCoef; //^ 双面矫正后的畸变参数（两相机一样）
 
     // Stereo baseline multiplied by fx.
     float mbf;
 
     // Stereo baseline in meters.
-    float mb;
+    float mb; 
 
     // Threshold close/far points. Close points are inserted from 1 view.
     // Far points are inserted as in the monocular case from 2 views.
     float mThDepth;
 
-    // Number of KeyPoints.
-    int N;
-
     // Vector of keypoints (original for visualization) and undistorted (actually used by the system).
     // In the stereo case, mvKeysUn is redundant as images must be rectified.
     // In the RGB-D case, RGB images can be distorted.
-    std::vector<cv::KeyPoint> mvKeys, mvKeysRight;
+    std::vector<cv::KeyPoint> mvKeys, mvKeysRight; //^ 左目和右目特征点向量(畸变)
     std::vector<cv::KeyPoint> mvKeysUn;
 
     // Corresponding stereo coordinate and depth for each keypoint.
@@ -193,7 +190,7 @@ public:
     DBoW2::FeatureVector mFeatVec;
 
     // ORB descriptor, each row associated to a keypoint.
-    cv::Mat mDescriptors, mDescriptorsRight;
+    cv::Mat mDescriptors, mDescriptorsRight;      //^ 左目和右目特征描述子向量
 
     // MapPoints associated to keypoints, NULL pointer if no association.
     // Flag to identify outlier associations.
@@ -230,20 +227,20 @@ public:
     IMU::Preintegrated* mpImuPreintegratedFrame;
 
     // Current and Next Frame id.
-    static long unsigned int nNextId;
-    long unsigned int mnId;
+    static long unsigned int nNextId;                     //^ 下一帧ID，静态变量
+    long unsigned int mnId;                               //^ 当前帧ID  
 
     // Reference Keyframe.
     KeyFrame* mpReferenceKF;
 
     // Scale pyramid info.
-    int mnScaleLevels;
-    float mfScaleFactor;
-    float mfLogScaleFactor;
-    vector<float> mvScaleFactors;
-    vector<float> mvInvScaleFactors;
-    vector<float> mvLevelSigma2;
-    vector<float> mvInvLevelSigma2;
+    int mnScaleLevels;                                    //^ 金字塔总层级数 
+    float mfScaleFactor;                                  //^ scale系数大小
+    float mfLogScaleFactor;                               //^ scale系数取log
+    vector<float> mvScaleFactors;                         //^ 存储每一层的scale大小（向量）
+    vector<float> mvInvScaleFactors;                      //^ 存储每一层的scale大小倒数（向量）
+    vector<float> mvLevelSigma2;                          //^ 存储每一层的scale大小平方（向量）
+    vector<float> mvInvLevelSigma2;                       //^ 存储每一层的scale大小平方的倒数（向量）
 
     // Undistorted Image Bounds (computed once).
     static float mnMinX;
@@ -292,10 +289,11 @@ private:
     std::mutex *mpMutexImu;
 
 public:
+    //^ 左右相机指针
     GeometricCamera* mpCamera, *mpCamera2;
 
-    //Number of KeyPoints extracted in the left and right images
-    int Nleft, Nright;
+    //Number of KeyPoints extracted in the left and right images and total number of KeyPoints.
+    int Nleft, Nright, n;  //^ 左目/右目/总关键点数目
     //Number of Non Lapping Keypoints
     int monoLeft, monoRight;
 
@@ -312,7 +310,7 @@ public:
     //Grid for the right image
     std::vector<std::size_t> mGridRight[FRAME_GRID_COLS][FRAME_GRID_ROWS];
 
-    cv::Mat mTlr, mRlr, mtlr, mTrl;
+    cv::Mat mTlr, mRlr, mtlr, mTrl; //^ mTlr和mTrl是3x4的Mat
     cv::Matx34f mTrlx, mTlrx;
 
 

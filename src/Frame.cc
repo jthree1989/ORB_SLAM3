@@ -32,9 +32,8 @@
 
 namespace ORB_SLAM3
 {
-
-long unsigned int Frame::nNextId=0;
-bool Frame::mbInitialComputations=true;
+long unsigned int Frame::nNextId=0; //! 全局ID计数 
+bool Frame::mbInitialComputations=true; //! 是否计算图像反畸变后的最大外接矩形(ComputeImageBounds)
 float Frame::cx, Frame::cy, Frame::fx, Frame::fy, Frame::invfx, Frame::invfy;
 float Frame::mnMinX, Frame::mnMinY, Frame::mnMaxX, Frame::mnMaxY;
 float Frame::mfGridElementWidthInv, Frame::mfGridElementHeightInv;
@@ -411,14 +410,17 @@ void Frame::AssignFeaturesToGrid()
     }
 }
 
-void Frame::ExtractORB(int flag, const cv::Mat &im, const int x0, const int x1)
+void Frame::ExtractORB(int flag,              //^ 0 : left, 1 : right 
+                       const cv::Mat &im,     //^ 图像Mat
+                       const int x0,          //? overlapping u坐标 
+                       const int x1)          //? overlapping v坐标 
 {
     vector<int> vLapping = {x0,x1};
     if(flag==0)
         monoLeft = (*mpORBextractorLeft)(im,
-                                         cv::Mat(), // Mask
-                                         mvKeys,
-                                         mDescriptors,
+                                         cv::Mat(),     // Mask
+                                         mvKeys,        // 左目特征点向量 
+                                         mDescriptors,  // 左目特征描述子向量
                                          vLapping);
     else
         monoRight = (*mpORBextractorRight)(im,
@@ -782,14 +784,14 @@ void Frame::ComputeImageBounds(const cv::Mat &imLeft)
         //^ i.e. x is cols and y is rows, 
         //^ see https://www.programmersought.com/article/99646007665/ for details
         cv::Mat mat(4,2,CV_32F);
-        mat.at<float>(0,0)=0.0; mat.at<float>(0,1)=0.0;               // Left-top corner
-        mat.at<float>(1,0)=imLeft.cols; mat.at<float>(1,1)=0.0;       // Right-top corner
-        mat.at<float>(2,0)=0.0; mat.at<float>(2,1)=imLeft.rows;       // 
-        mat.at<float>(3,0)=imLeft.cols; mat.at<float>(3,1)=imLeft.rows;
+        mat.at<float>(0,0)=0.0; mat.at<float>(0,1)=0.0;                 // Left-top corner
+        mat.at<float>(1,0)=imLeft.cols; mat.at<float>(1,1)=0.0;         // Right-top corner
+        mat.at<float>(2,0)=0.0; mat.at<float>(2,1)=imLeft.rows;         // Left-bottom corner
+        mat.at<float>(3,0)=imLeft.cols; mat.at<float>(3,1)=imLeft.rows; // Right-bottom corner
 
-        mat=mat.reshape(2);
+        mat=mat.reshape(2); // Mat通道数变为2,即4x1的双通道
         cv::undistortPoints(mat,mat,static_cast<Pinhole*>(mpCamera)->toK(),mDistCoef,cv::Mat(),mK);
-        mat=mat.reshape(1);
+        mat=mat.reshape(1); // Mat通道数变为2,即4x2的单通道
 
         // Undistort corners
         mnMinX = min(mat.at<float>(0,0),mat.at<float>(2,0));
@@ -1046,33 +1048,35 @@ Frame::Frame(const cv::Mat &imLeft,               // 左目图像
              Frame* pPrevF,                       // 上一帧Frame指针
              const IMU::Calib &ImuCalib)          // IMU内外参及协防差矩阵
         :mpcpi(NULL),                             // 存储pvqbgba及状态变量协防差矩阵的成员变量 
-         mpORBvocabulary(voc),
-         mpORBextractorLeft(extractorLeft),
-         mpORBextractorRight(extractorRight), 
-         mTimeStamp(timeStamp), 
-         mK(K.clone()), 
-         mDistCoef(distCoef.clone()), 
-         mbf(bf), mThDepth(thDepth),
-         mImuCalib(ImuCalib), 
+         mpORBvocabulary(voc),                    // 重定位使用的词表
+         mpORBextractorLeft(extractorLeft),       // 左目特征提取对象
+         mpORBextractorRight(extractorRight),     // 右目特征提取对象
+         mTimeStamp(timeStamp),                   // 帧时间戳
+         mK(K.clone()),                           // 双目矫正后的相机内参（两相机一样）
+         mDistCoef(distCoef.clone()),             // 双面矫正后的畸变参数（两相机一样）
+         mbf(bf),                                 // 双目基线乘以焦距（stereo baseline times fx）
+         mThDepth(thDepth),                       //? 深度阈值（Baseline times）
+         mImuCalib(ImuCalib),                     // IMU内外参及协防差矩阵
          mpImuPreintegrated(NULL),                // 储存上一个关键帧到当前帧的IMU预积分
-         mpPrevFrame(pPrevF), 
+         mpPrevFrame(pPrevF),                     // 上一帧Frame指针
          mpImuPreintegratedFrame(NULL),           // 储存上一个关键帧到上一帧的IMU预积分
          mpReferenceKF(static_cast<KeyFrame*>(NULL)), //? 参考关键帧指针 
          mbImuPreintegrated(false),               // 该帧是否完成预积分                             
-         mpCamera(pCamera), 
-         mpCamera2(pCamera2), 
-         mTlr(Tlr)
+         mpCamera(pCamera),                       // 左相机对象指针   
+         mpCamera2(pCamera2),                     // 左相机对象指针 
+         mTlr(Tlr)                                // 从右相机到左相机的变换矩阵
 {
     imgLeft = imLeft.clone();                     //^ TODO 深复制，安全但是低效率
     imgRight = imRight.clone();
 
     // Frame ID
+    //^ 当前帧ID
     mnId=nNextId++;
 
     // Scale Level Info
     mnScaleLevels = mpORBextractorLeft->GetLevels();                        // 金字塔总层级
     mfScaleFactor = mpORBextractorLeft->GetScaleFactor();                   // scale系数大小
-    mfLogScaleFactor = log(mfScaleFactor);                                  //? 系数取log
+    mfLogScaleFactor = log(mfScaleFactor);                                  // scale系数取log
     mvScaleFactors = mpORBextractorLeft->GetScaleFactors();                 // 每一层的scale大小（向量）
     mvInvScaleFactors = mpORBextractorLeft->GetInverseScaleFactors();       // 每一层的scale大小倒数（向量）
     mvLevelSigma2 = mpORBextractorLeft->GetScaleSigmaSquares();             // 每一层的scale大小平方（向量）
@@ -1114,7 +1118,7 @@ Frame::Frame(const cv::Mat &imLeft,               // 左目图像
     // This is done only for the first Frame (or after a change in the calibration)
     if(mbInitialComputations)
     {
-        // 计算左目图像最大外接矩形
+        // 计算左目图像反畸变后的最大外接矩形
         ComputeImageBounds(imLeft);
 
         mfGridElementWidthInv=static_cast<float>(FRAME_GRID_COLS)/(mnMaxX-mnMinX);
@@ -1139,7 +1143,7 @@ Frame::Frame(const cv::Mat &imLeft,               // 左目图像
     cv::Mat trl = Rrl * (-1 * mTlr.col(3));
 
     cv::hconcat(Rrl,trl,mTrl);
-
+    //^ 转换为OpenCV已知大小的Matx类型(https://docs.opencv.org/4.5.3/de/de1/classcv_1_1Matx.html#details)
     mTrlx = cv::Matx34f(Rrl.at<float>(0,0), Rrl.at<float>(0,1), Rrl.at<float>(0,2), trl.at<float>(0),
                         Rrl.at<float>(1,0), Rrl.at<float>(1,1), Rrl.at<float>(1,2), trl.at<float>(1),
                         Rrl.at<float>(2,0), Rrl.at<float>(2,1), Rrl.at<float>(2,2), trl.at<float>(2));
