@@ -1118,7 +1118,7 @@ Frame::Frame(const cv::Mat &imLeft,               // 左目图像
     // This is done only for the first Frame (or after a change in the calibration)
     if(mbInitialComputations)
     {
-        // 计算左目图像反畸变后的最大外接矩形
+        //^ 计算左目图像反畸变后的最大外接矩形
         ComputeImageBounds(imLeft);
 
         mfGridElementWidthInv=static_cast<float>(FRAME_GRID_COLS)/(mnMaxX-mnMinX);
@@ -1178,11 +1178,11 @@ Frame::Frame(const cv::Mat &imLeft,               // 左目图像
 
 void Frame::ComputeStereoFishEyeMatches() {
     //Speed it up by matching keypoints in the lapping area
-    vector<cv::KeyPoint> stereoLeft(mvKeys.begin() + monoLeft, mvKeys.end());
-    vector<cv::KeyPoint> stereoRight(mvKeysRight.begin() + monoRight, mvKeysRight.end());
+    vector<cv::KeyPoint> stereoLeft(mvKeys.begin() + monoLeft, mvKeys.end());                 // 左目处在交叠区域的关键点
+    vector<cv::KeyPoint> stereoRight(mvKeysRight.begin() + monoRight, mvKeysRight.end());     // 右目处在交叠区域的关键点
 
-    cv::Mat stereoDescLeft = mDescriptors.rowRange(monoLeft, mDescriptors.rows);
-    cv::Mat stereoDescRight = mDescriptorsRight.rowRange(monoRight, mDescriptorsRight.rows);
+    cv::Mat stereoDescLeft = mDescriptors.rowRange(monoLeft, mDescriptors.rows);              // 左目处在交叠区域的描述子
+    cv::Mat stereoDescRight = mDescriptorsRight.rowRange(monoRight, mDescriptorsRight.rows);  // 右目处在交叠区域的描述子
 
     mvLeftToRightMatch = vector<int>(Nleft,-1);
     mvRightToLeftMatch = vector<int>(Nright,-1);

@@ -61,8 +61,8 @@ public:
           ORBextractor* extractorLeft,                    //^ 左目特征点提取
           ORBextractor* extractorRight,                   //^ 右目特征点提取
           ORBVocabulary* voc,                             //^ 词袋
-          cv::Mat &K,                                     //^ 双面矫正后内参
-          cv::Mat &distCoef,                              //^ 双面矫正后畸变
+          cv::Mat &K,                                     //^ 双目矫正后内参
+          cv::Mat &distCoef,                              //^ 双目矫正后畸变
           const float &bf,                                //^ baseline * focal_length 
           const float &thDepth,                           //^ depth 
           GeometricCamera* pCamera,                       //^ 左目真实内参 
@@ -295,7 +295,7 @@ public:
     //Number of KeyPoints extracted in the left and right images and total number of KeyPoints.
     int Nleft, Nright, n;  //^ 左目/右目/总关键点数目
     //Number of Non Lapping Keypoints
-    int monoLeft, monoRight;
+    int monoLeft, monoRight; //^ 左右非交叠区域的关键点个数
 
     //For stereo matching
     std::vector<int> mvLeftToRightMatch, mvRightToLeftMatch;
