@@ -164,10 +164,11 @@ public:
     cv::Mat mDistCoef; //^ 双面矫正后的畸变参数（两相机一样）
 
     // Stereo baseline multiplied by fx.
-    float mbf;
+    float mbf;  //^ 双目基线乘以焦距
 
     // Stereo baseline in meters.
-    float mb; 
+    float mb;   //^ 双目基线
+
 
     // Threshold close/far points. Close points are inserted from 1 view.
     // Far points are inserted as in the monocular case from 2 views.

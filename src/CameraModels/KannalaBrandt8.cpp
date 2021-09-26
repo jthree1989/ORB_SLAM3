@@ -335,7 +335,14 @@ namespace ORB_SLAM3 {
         return true;
     }
 
-    float KannalaBrandt8::TriangulateMatches(GeometricCamera *pCamera2, const cv::KeyPoint &kp1, const cv::KeyPoint &kp2, const cv::Mat &R12, const cv::Mat &t12, const float sigmaLevel, const float unc, cv::Mat& p3D) {
+    float KannalaBrandt8::TriangulateMatches(GeometricCamera *pCamera2, 
+                                             const cv::KeyPoint &kp1, 
+                                             const cv::KeyPoint &kp2, 
+                                             const cv::Mat &R12, 
+                                             const cv::Mat &t12, 
+                                             const float sigmaLevel1, 
+                                             const float sigmaLevel2, 
+                                             cv::Mat& p3D) {
         cv::Mat r1 = this->unprojectMat(kp1.pt);
         cv::Mat r2 = pCamera2->unprojectMat(kp2.pt);
 
@@ -386,8 +393,8 @@ namespace ORB_SLAM3 {
 
         float errX1 = uv1.x - kp1.pt.x;
         float errY1 = uv1.y - kp1.pt.y;
-
-        if((errX1*errX1+errY1*errY1)>5.991 * sigmaLevel){   //Reprojection error is high
+        //! TODO Why 5.991
+        if((errX1*errX1+errY1*errY1)>5.991 * sigmaLevel1){   //Reprojection error is high
             return -1;
         }
 
@@ -396,8 +403,8 @@ namespace ORB_SLAM3 {
 
         float errX2 = uv2.x - kp2.pt.x;
         float errY2 = uv2.y - kp2.pt.y;
-
-        if((errX2*errX2+errY2*errY2)>5.991 * unc){   //Reprojection error is high
+        //! TODO Why 5.991
+        if((errX2*errX2+errY2*errY2)>5.991 * sigmaLevel2){   //Reprojection error is high
             return -1;
         }
 
@@ -406,7 +413,14 @@ namespace ORB_SLAM3 {
         return z1;
     }
 
-    float KannalaBrandt8::TriangulateMatches_(GeometricCamera *pCamera2, const cv::KeyPoint &kp1, const cv::KeyPoint &kp2, const cv::Matx33f &R12, const cv::Matx31f &t12, const float sigmaLevel, const float unc, cv::Matx31f& p3D) {
+    float KannalaBrandt8::TriangulateMatches_(GeometricCamera *pCamera2, 
+                                              const cv::KeyPoint &kp1, 
+                                              const cv::KeyPoint &kp2, 
+                                              const cv::Matx33f &R12, 
+                                              const cv::Matx31f &t12, 
+                                              const float sigmaLevel1, 
+                                              const float sigmaLevel2, 
+                                              cv::Matx31f& p3D) {
         cv::Matx31f r1 = this->unprojectMat_(kp1.pt);
         cv::Matx31f r2 = pCamera2->unprojectMat_(kp2.pt);
 
@@ -460,7 +474,7 @@ namespace ORB_SLAM3 {
         float errX1 = uv1.x - kp1.pt.x;
         float errY1 = uv1.y - kp1.pt.y;
 
-        if((errX1*errX1+errY1*errY1)>5.991 * sigmaLevel){   //Reprojection error is high
+        if((errX1*errX1+errY1*errY1)>5.991 * sigmaLevel1){   //Reprojection error is high
             return -1;
         }
 
@@ -470,7 +484,7 @@ namespace ORB_SLAM3 {
         float errX2 = uv2.x - kp2.pt.x;
         float errY2 = uv2.y - kp2.pt.y;
 
-        if((errX2*errX2+errY2*errY2)>5.991 * unc){   //Reprojection error is high
+        if((errX2*errX2+errY2*errY2)>5.991 * sigmaLevel2){   //Reprojection error is high
             return -1;
         }
 

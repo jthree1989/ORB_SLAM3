@@ -49,6 +49,150 @@ Frame::Frame(): mpcpi(NULL), mpImuPreintegrated(NULL), mpPrevFrame(NULL), mpImuP
 #endif
 }
 
+Frame::Frame(const cv::Mat &imLeft,               // 左目图像
+             const cv::Mat &imRight,              // 右目图像
+             const double &timeStamp,             // 时间戳
+             ORBextractor* extractorLeft,         // 左目ORBExtractor
+             ORBextractor* extractorRight,        // 右目ORBExtractor
+             ORBVocabulary* voc,                  // ORB词袋
+             cv::Mat &K,                          // 双目矫正后的相机内参（两相机一样）
+             cv::Mat &distCoef,                   // 双面矫正后的畸变参数（两相机一样）
+             const float &bf,                     // 双目基线乘以焦距（stereo baseline times fx）
+             const float &thDepth,                //? 深度阈值（Baseline times）
+             GeometricCamera* pCamera,            // 左相机对象指针 
+             GeometricCamera* pCamera2,           // 右相机对象指针 
+             cv::Mat& Tlr,                        // 从右相机到左相机的变换矩阵
+             Frame* pPrevF,                       // 上一帧Frame指针
+             const IMU::Calib &ImuCalib)          // IMU内外参及协防差矩阵
+        :mpcpi(NULL),                             // 存储pvqbgba及状态变量协防差矩阵的成员变量 
+         mpORBvocabulary(voc),                    // 重定位使用的词表
+         mpORBextractorLeft(extractorLeft),       // 左目特征提取对象
+         mpORBextractorRight(extractorRight),     // 右目特征提取对象
+         mTimeStamp(timeStamp),                   // 帧时间戳
+         mK(K.clone()),                           // 双目矫正后的相机内参（两相机一样）
+         mDistCoef(distCoef.clone()),             // 双面矫正后的畸变参数（两相机一样）
+         mbf(bf),                                 // 双目基线乘以焦距（stereo baseline times fx）
+         mThDepth(thDepth),                       //? 深度阈值（Baseline times）
+         mImuCalib(ImuCalib),                     // IMU内外参及协防差矩阵
+         mpImuPreintegrated(NULL),                // 储存上一个关键帧到当前帧的IMU预积分
+         mpPrevFrame(pPrevF),                     // 上一帧Frame指针
+         mpImuPreintegratedFrame(NULL),           // 储存上一个关键帧到上一帧的IMU预积分
+         mpReferenceKF(static_cast<KeyFrame*>(NULL)), //? 参考关键帧指针 
+         mbImuPreintegrated(false),               // 该帧是否完成预积分                             
+         mpCamera(pCamera),                       // 左相机对象指针   
+         mpCamera2(pCamera2),                     // 左相机对象指针 
+         mTlr(Tlr)                                // 从右相机到左相机的变换矩阵
+{
+    imgLeft = imLeft.clone();                     //^ TODO 深复制，安全但是低效率
+    imgRight = imRight.clone();
+
+    // Frame ID
+    //^ 当前帧ID
+    mnId=nNextId++;
+
+    // Scale Level Info
+    mnScaleLevels = mpORBextractorLeft->GetLevels();                        // 金字塔总层级
+    mfScaleFactor = mpORBextractorLeft->GetScaleFactor();                   // scale系数大小
+    mfLogScaleFactor = log(mfScaleFactor);                                  // scale系数取log
+    mvScaleFactors = mpORBextractorLeft->GetScaleFactors();                 // 每一层的scale大小（向量）
+    mvInvScaleFactors = mpORBextractorLeft->GetInverseScaleFactors();       // 每一层的scale大小倒数（向量）
+    mvLevelSigma2 = mpORBextractorLeft->GetScaleSigmaSquares();             // 每一层的scale大小平方（向量）
+    mvInvLevelSigma2 = mpORBextractorLeft->GetInverseScaleSigmaSquares();   // 每一层的scale大小平方倒数（向量）
+
+    // ORB extraction
+#ifdef REGISTER_TIMES
+    std::chrono::steady_clock::time_point time_StartExtORB = std::chrono::steady_clock::now();
+#endif
+    // 输出为左目特征点及特征描述子(mvKeys/mDescriptors)
+    //      右目特征点及特征描述子(mvKeysRight/mDescriptorsRight)
+    thread threadLeft(&Frame::ExtractORB,
+                      this, 
+                      0,
+                      imLeft,
+                      static_cast<KannalaBrandt8*>(mpCamera)->mvLappingArea[0], //? Use dynamic_cast for safety
+                      static_cast<KannalaBrandt8*>(mpCamera)->mvLappingArea[1]);
+    thread threadRight(&Frame::ExtractORB,
+                       this,
+                       1,
+                       imRight,
+                       static_cast<KannalaBrandt8*>(mpCamera2)->mvLappingArea[0],
+                       static_cast<KannalaBrandt8*>(mpCamera2)->mvLappingArea[1]);
+    threadLeft.join();
+    threadRight.join();
+#ifdef REGISTER_TIMES
+    std::chrono::steady_clock::time_point time_EndExtORB = std::chrono::steady_clock::now();
+
+    mTimeORB_Ext = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndExtORB - time_StartExtORB).count();
+#endif
+
+    Nleft = mvKeys.size();
+    Nright = mvKeysRight.size();
+    N = Nleft + Nright;
+
+    if(N == 0)
+        return;
+
+    // This is done only for the first Frame (or after a change in the calibration)
+    if(mbInitialComputations)
+    {
+        //^ 计算左目图像反畸变后的最大外接矩形
+        ComputeImageBounds(imLeft);
+
+        mfGridElementWidthInv=static_cast<float>(FRAME_GRID_COLS)/(mnMaxX-mnMinX);
+        mfGridElementHeightInv=static_cast<float>(FRAME_GRID_ROWS)/(mnMaxY-mnMinY);
+
+        fx = K.at<float>(0,0);
+        fy = K.at<float>(1,1);
+        cx = K.at<float>(0,2);
+        cy = K.at<float>(1,2);
+        invfx = 1.0f/fx;
+        invfy = 1.0f/fy;
+
+        mbInitialComputations=false;
+    }
+
+    mb = mbf / fx;
+
+    mRlr = mTlr.rowRange(0,3).colRange(0,3); // 右相机到左相机的旋转矩阵
+    mtlr = mTlr.col(3);                      // 右相机到左相机的平移向量
+
+    cv::Mat Rrl = mTlr.rowRange(0,3).colRange(0,3).t();
+    cv::Mat trl = Rrl * (-1 * mTlr.col(3));
+
+    cv::hconcat(Rrl,trl,mTrl);
+    //^ 转换为OpenCV已知大小的Matx类型(https://docs.opencv.org/4.5.3/de/de1/classcv_1_1Matx.html#details)
+    mTrlx = cv::Matx34f(Rrl.at<float>(0,0), Rrl.at<float>(0,1), Rrl.at<float>(0,2), trl.at<float>(0),
+                        Rrl.at<float>(1,0), Rrl.at<float>(1,1), Rrl.at<float>(1,2), trl.at<float>(1),
+                        Rrl.at<float>(2,0), Rrl.at<float>(2,1), Rrl.at<float>(2,2), trl.at<float>(2));
+    mTlrx = cv::Matx34f(mRlr.at<float>(0,0), mRlr.at<float>(0,1), mRlr.at<float>(0,2), mtlr.at<float>(0),
+                        mRlr.at<float>(1,0), mRlr.at<float>(1,1), mRlr.at<float>(1,2), mtlr.at<float>(1),
+                        mRlr.at<float>(2,0), mRlr.at<float>(2,1), mRlr.at<float>(2,2), mtlr.at<float>(2));
+
+#ifdef REGISTER_TIMES
+    std::chrono::steady_clock::time_point time_StartStereoMatches = std::chrono::steady_clock::now();
+#endif
+    //^ 双目三角化特征点
+    ComputeStereoFishEyeMatches();
+#ifdef REGISTER_TIMES
+    std::chrono::steady_clock::time_point time_EndStereoMatches = std::chrono::steady_clock::now();
+
+    mTimeStereoMatch = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndStereoMatches - time_StartStereoMatches).count();
+#endif
+
+    //Put all descriptors in the same matrix
+    //^ 左右目特征描述子合并
+    cv::vconcat(mDescriptors,mDescriptorsRight,mDescriptors);
+
+    mvpMapPoints = vector<MapPoint*>(N,static_cast<MapPoint*>(nullptr));
+    mvbOutlier = vector<bool>(N,false);
+    //^ 将Feature分配到各个Grid
+    AssignFeaturesToGrid();
+
+    mpMutexImu = new std::mutex();
+    //^ 将Feature反投影到归一化平面
+    UndistortKeyPoints();
+}
+
 
 //Copy Constructor
 Frame::Frame(const Frame &frame)
@@ -135,6 +279,7 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
 #ifdef REGISTER_TIMES
     std::chrono::steady_clock::time_point time_StartStereoMatches = std::chrono::steady_clock::now();
 #endif
+    //^ 计算双目特征描述子匹配并计算深度
     ComputeStereoMatches();
 #ifdef REGISTER_TIMES
     std::chrono::steady_clock::time_point time_EndStereoMatches = std::chrono::steady_clock::now();
@@ -1032,150 +1177,6 @@ void Frame::setIntegrated()
     mbImuPreintegrated = true;
 }
 
-Frame::Frame(const cv::Mat &imLeft,               // 左目图像
-             const cv::Mat &imRight,              // 右目图像
-             const double &timeStamp,             // 时间戳
-             ORBextractor* extractorLeft,         // 左目ORBExtractor
-             ORBextractor* extractorRight,        // 右目ORBExtractor
-             ORBVocabulary* voc,                  // ORB词袋
-             cv::Mat &K,                          // 双目矫正后的相机内参（两相机一样）
-             cv::Mat &distCoef,                   // 双面矫正后的畸变参数（两相机一样）
-             const float &bf,                     // 双目基线乘以焦距（stereo baseline times fx）
-             const float &thDepth,                //? 深度阈值（Baseline times）
-             GeometricCamera* pCamera,            // 左相机对象指针 
-             GeometricCamera* pCamera2,           // 右相机对象指针 
-             cv::Mat& Tlr,                        // 从右相机到左相机的变换矩阵
-             Frame* pPrevF,                       // 上一帧Frame指针
-             const IMU::Calib &ImuCalib)          // IMU内外参及协防差矩阵
-        :mpcpi(NULL),                             // 存储pvqbgba及状态变量协防差矩阵的成员变量 
-         mpORBvocabulary(voc),                    // 重定位使用的词表
-         mpORBextractorLeft(extractorLeft),       // 左目特征提取对象
-         mpORBextractorRight(extractorRight),     // 右目特征提取对象
-         mTimeStamp(timeStamp),                   // 帧时间戳
-         mK(K.clone()),                           // 双目矫正后的相机内参（两相机一样）
-         mDistCoef(distCoef.clone()),             // 双面矫正后的畸变参数（两相机一样）
-         mbf(bf),                                 // 双目基线乘以焦距（stereo baseline times fx）
-         mThDepth(thDepth),                       //? 深度阈值（Baseline times）
-         mImuCalib(ImuCalib),                     // IMU内外参及协防差矩阵
-         mpImuPreintegrated(NULL),                // 储存上一个关键帧到当前帧的IMU预积分
-         mpPrevFrame(pPrevF),                     // 上一帧Frame指针
-         mpImuPreintegratedFrame(NULL),           // 储存上一个关键帧到上一帧的IMU预积分
-         mpReferenceKF(static_cast<KeyFrame*>(NULL)), //? 参考关键帧指针 
-         mbImuPreintegrated(false),               // 该帧是否完成预积分                             
-         mpCamera(pCamera),                       // 左相机对象指针   
-         mpCamera2(pCamera2),                     // 左相机对象指针 
-         mTlr(Tlr)                                // 从右相机到左相机的变换矩阵
-{
-    imgLeft = imLeft.clone();                     //^ TODO 深复制，安全但是低效率
-    imgRight = imRight.clone();
-
-    // Frame ID
-    //^ 当前帧ID
-    mnId=nNextId++;
-
-    // Scale Level Info
-    mnScaleLevels = mpORBextractorLeft->GetLevels();                        // 金字塔总层级
-    mfScaleFactor = mpORBextractorLeft->GetScaleFactor();                   // scale系数大小
-    mfLogScaleFactor = log(mfScaleFactor);                                  // scale系数取log
-    mvScaleFactors = mpORBextractorLeft->GetScaleFactors();                 // 每一层的scale大小（向量）
-    mvInvScaleFactors = mpORBextractorLeft->GetInverseScaleFactors();       // 每一层的scale大小倒数（向量）
-    mvLevelSigma2 = mpORBextractorLeft->GetScaleSigmaSquares();             // 每一层的scale大小平方（向量）
-    mvInvLevelSigma2 = mpORBextractorLeft->GetInverseScaleSigmaSquares();   // 每一层的scale大小平方倒数（向量）
-
-    // ORB extraction
-#ifdef REGISTER_TIMES
-    std::chrono::steady_clock::time_point time_StartExtORB = std::chrono::steady_clock::now();
-#endif
-    // 输出为左目特征点及特征描述子(mvKeys/mDescriptors)
-    //      右目特征点及特征描述子(mvKeysRight/mDescriptorsRight)
-    thread threadLeft(&Frame::ExtractORB,
-                      this, 
-                      0,
-                      imLeft,
-                      static_cast<KannalaBrandt8*>(mpCamera)->mvLappingArea[0], //? Use dynamic_cast for safety
-                      static_cast<KannalaBrandt8*>(mpCamera)->mvLappingArea[1]);
-    thread threadRight(&Frame::ExtractORB,
-                       this,
-                       1,
-                       imRight,
-                       static_cast<KannalaBrandt8*>(mpCamera2)->mvLappingArea[0],
-                       static_cast<KannalaBrandt8*>(mpCamera2)->mvLappingArea[1]);
-    threadLeft.join();
-    threadRight.join();
-#ifdef REGISTER_TIMES
-    std::chrono::steady_clock::time_point time_EndExtORB = std::chrono::steady_clock::now();
-
-    mTimeORB_Ext = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndExtORB - time_StartExtORB).count();
-#endif
-
-    Nleft = mvKeys.size();
-    Nright = mvKeysRight.size();
-    N = Nleft + Nright;
-
-    if(N == 0)
-        return;
-
-    // This is done only for the first Frame (or after a change in the calibration)
-    if(mbInitialComputations)
-    {
-        //^ 计算左目图像反畸变后的最大外接矩形
-        ComputeImageBounds(imLeft);
-
-        mfGridElementWidthInv=static_cast<float>(FRAME_GRID_COLS)/(mnMaxX-mnMinX);
-        mfGridElementHeightInv=static_cast<float>(FRAME_GRID_ROWS)/(mnMaxY-mnMinY);
-
-        fx = K.at<float>(0,0);
-        fy = K.at<float>(1,1);
-        cx = K.at<float>(0,2);
-        cy = K.at<float>(1,2);
-        invfx = 1.0f/fx;
-        invfy = 1.0f/fy;
-
-        mbInitialComputations=false;
-    }
-
-    mb = mbf / fx;
-
-    mRlr = mTlr.rowRange(0,3).colRange(0,3);
-    mtlr = mTlr.col(3);
-
-    cv::Mat Rrl = mTlr.rowRange(0,3).colRange(0,3).t();
-    cv::Mat trl = Rrl * (-1 * mTlr.col(3));
-
-    cv::hconcat(Rrl,trl,mTrl);
-    //^ 转换为OpenCV已知大小的Matx类型(https://docs.opencv.org/4.5.3/de/de1/classcv_1_1Matx.html#details)
-    mTrlx = cv::Matx34f(Rrl.at<float>(0,0), Rrl.at<float>(0,1), Rrl.at<float>(0,2), trl.at<float>(0),
-                        Rrl.at<float>(1,0), Rrl.at<float>(1,1), Rrl.at<float>(1,2), trl.at<float>(1),
-                        Rrl.at<float>(2,0), Rrl.at<float>(2,1), Rrl.at<float>(2,2), trl.at<float>(2));
-    mTlrx = cv::Matx34f(mRlr.at<float>(0,0), mRlr.at<float>(0,1), mRlr.at<float>(0,2), mtlr.at<float>(0),
-                        mRlr.at<float>(1,0), mRlr.at<float>(1,1), mRlr.at<float>(1,2), mtlr.at<float>(1),
-                        mRlr.at<float>(2,0), mRlr.at<float>(2,1), mRlr.at<float>(2,2), mtlr.at<float>(2));
-
-#ifdef REGISTER_TIMES
-    std::chrono::steady_clock::time_point time_StartStereoMatches = std::chrono::steady_clock::now();
-#endif
-    //^ 双目三角化特征点
-    ComputeStereoFishEyeMatches();
-#ifdef REGISTER_TIMES
-    std::chrono::steady_clock::time_point time_EndStereoMatches = std::chrono::steady_clock::now();
-
-    mTimeStereoMatch = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndStereoMatches - time_StartStereoMatches).count();
-#endif
-
-    //Put all descriptors in the same matrix
-    //^ 左右目特征描述子合并
-    cv::vconcat(mDescriptors,mDescriptorsRight,mDescriptors);
-
-    mvpMapPoints = vector<MapPoint*>(N,static_cast<MapPoint*>(nullptr));
-    mvbOutlier = vector<bool>(N,false);
-
-    AssignFeaturesToGrid();
-
-    mpMutexImu = new std::mutex();
-
-    UndistortKeyPoints();
-}
-
 void Frame::ComputeStereoFishEyeMatches() {
     //Speed it up by matching keypoints in the lapping area
     vector<cv::KeyPoint> stereoLeft(mvKeys.begin() + monoLeft, mvKeys.end());                 // 左目处在交叠区域的关键点
@@ -1206,7 +1207,14 @@ void Frame::ComputeStereoFishEyeMatches() {
             cv::Mat p3D;
             descMatches++;
             float sigma1 = mvLevelSigma2[mvKeys[(*it)[0].queryIdx + monoLeft].octave], sigma2 = mvLevelSigma2[mvKeysRight[(*it)[0].trainIdx + monoRight].octave];
-            float depth = static_cast<KannalaBrandt8*>(mpCamera)->TriangulateMatches(mpCamera2,mvKeys[(*it)[0].queryIdx + monoLeft],mvKeysRight[(*it)[0].trainIdx + monoRight],mRlr,mtlr,sigma1,sigma2,p3D);
+            float depth = static_cast<KannalaBrandt8*>(mpCamera)->TriangulateMatches(mpCamera2,
+                                                                                     mvKeys[(*it)[0].queryIdx + monoLeft],
+                                                                                     mvKeysRight[(*it)[0].trainIdx + monoRight],
+                                                                                     mRlr,
+                                                                                     mtlr,
+                                                                                     sigma1,
+                                                                                     sigma2,
+                                                                                     p3D);
             if(depth > 0.0001f){
                 mvLeftToRightMatch[(*it)[0].queryIdx + monoLeft] = (*it)[0].trainIdx + monoRight;
                 mvRightToLeftMatch[(*it)[0].trainIdx + monoRight] = (*it)[0].queryIdx + monoLeft;
