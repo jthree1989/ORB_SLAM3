@@ -36,11 +36,28 @@ MapPoint::MapPoint():
     mpReplaced = static_cast<MapPoint*>(NULL);
 }
 
-MapPoint::MapPoint(const cv::Mat &Pos, KeyFrame *pRefKF, Map* pMap):
-    mnFirstKFid(pRefKF->mnId), mnFirstFrame(pRefKF->mnFrameId), nObs(0), mnTrackReferenceForFrame(0),
-    mnLastFrameSeen(0), mnBALocalForKF(0), mnFuseCandidateForKF(0), mnLoopPointForKF(0), mnCorrectedByKF(0),
-    mnCorrectedReference(0), mnBAGlobalForKF(0), mpRefKF(pRefKF), mnVisible(1), mnFound(1), mbBad(false),
-    mpReplaced(static_cast<MapPoint*>(NULL)), mfMinDistance(0), mfMaxDistance(0), mpMap(pMap),
+MapPoint::MapPoint(const cv::Mat &Pos,        // MapPoint在左目下的3d位置 
+                   KeyFrame *pRefKF,          // MapPoint关键帧的指针
+                   Map* pMap):                // MapPoiny所属地图的指针
+    mnFirstKFid(pRefKF->mnId), 
+    mnFirstFrame(pRefKF->mnFrameId), 
+    nObs(0), 
+    mnTrackReferenceForFrame(0),
+    mnLastFrameSeen(0),
+    mnBALocalForKF(0), 
+    mnFuseCandidateForKF(0), 
+    mnLoopPointForKF(0), 
+    mnCorrectedByKF(0),
+    mnCorrectedReference(0), 
+    mnBAGlobalForKF(0), 
+    mpRefKF(pRefKF), 
+    mnVisible(1), 
+    mnFound(1), 
+    mbBad(false),
+    mpReplaced(static_cast<MapPoint*>(NULL)), 
+    mfMinDistance(0), 
+    mfMaxDistance(0), 
+    mpMap(pMap),
     mnOriginMapId(pMap->GetId())
 {
     Pos.copyTo(mWorldPos);
@@ -171,9 +188,11 @@ void MapPoint::AddObservation(KeyFrame* pKF, int idx)
     }
 
     if(pKF -> NLeft != -1 && idx >= pKF -> NLeft){
+        // 右目index
         get<1>(indexes) = idx;
     }
     else{
+        // 左目index
         get<0>(indexes) = idx;
     }
 

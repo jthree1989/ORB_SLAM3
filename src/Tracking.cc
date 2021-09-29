@@ -2220,6 +2220,7 @@ void Tracking::StereoInitialization()
             }
             // 上一帧到当前帧的平均加速度 mCurrentFrame.mpImuPreintegratedFrame->avgA
             // 上上帧到上一帧的平均加速度 mLastFrame.mpImuPreintegratedFrame->avgA
+            // TODO 不能适用于静止初始化的情况
             if (cv::norm(mCurrentFrame.mpImuPreintegratedFrame->avgA - mLastFrame.mpImuPreintegratedFrame->avgA)<0.5)
             {
                 cout << "not enough acceleration" << endl;
@@ -2234,6 +2235,7 @@ void Tracking::StereoInitialization()
         // Set Frame pose to the origin (In case of inertial SLAM to imu)
         if (mSensor == System::IMU_STEREO)
         {
+            //^ 如果有IMU，初始位姿设置成IMU在相机坐标系下的位姿
             cv::Mat Rwb0 = mCurrentFrame.mImuCalib.Tcb.rowRange(0,3).colRange(0,3).clone();
             cv::Mat twb0 = mCurrentFrame.mImuCalib.Tcb.rowRange(0,3).col(3).clone();
             mCurrentFrame.SetImuPoseVelocity(Rwb0, twb0, cv::Mat::zeros(3,1,CV_32F));
@@ -2274,7 +2276,7 @@ void Tracking::StereoInitialization()
                 if(rightIndex != -1){
                     //^ 将成功双目三角化的特征点构造成MapPoint
                     cv::Mat x3D = mCurrentFrame.mvStereo3Dpoints[i];
-
+                    // 新建Mappoint点
                     MapPoint* pNewMP = new MapPoint(x3D, pKFini, mpAtlas->GetCurrentMap());
 
                     pNewMP->AddObservation(pKFini,i);
