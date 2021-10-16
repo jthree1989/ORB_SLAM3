@@ -176,18 +176,36 @@ IntegratedRotation::IntegratedRotation(const cv::Point3f &angVel, const Bias &im
     }
 }
 
-Preintegrated::Preintegrated(const Bias &b_, const Calib &calib)
+Preintegrated::Preintegrated(const Bias &b_,        // 初始bias 
+                             const Calib &calib)    // IMU和相机外参、陀螺仪/加速度计噪声协防差矩阵和随机游走协方差矩阵
 {
     Nga = calib.Cov.clone();
     NgaWalk = calib.CovWalk.clone();
+    // 初始化类的成员变量
     Initialize(b_);
 }
 
 // Copy constructor
-Preintegrated::Preintegrated(Preintegrated* pImuPre): dT(pImuPre->dT), C(pImuPre->C.clone()), Info(pImuPre->Info.clone()),
-    Nga(pImuPre->Nga.clone()), NgaWalk(pImuPre->NgaWalk.clone()), b(pImuPre->b), dR(pImuPre->dR.clone()), dV(pImuPre->dV.clone()),
-    dP(pImuPre->dP.clone()), JRg(pImuPre->JRg.clone()), JVg(pImuPre->JVg.clone()), JVa(pImuPre->JVa.clone()), JPg(pImuPre->JPg.clone()),
-    JPa(pImuPre->JPa.clone()), avgA(pImuPre->avgA.clone()), avgW(pImuPre->avgW.clone()), bu(pImuPre->bu), db(pImuPre->db.clone()), mvMeasurements(pImuPre->mvMeasurements)
+Preintegrated::Preintegrated(Preintegrated* pImuPre): 
+    dT(pImuPre->dT), 
+    C(pImuPre->C.clone()), 
+    Info(pImuPre->Info.clone()),
+    Nga(pImuPre->Nga.clone()), 
+    NgaWalk(pImuPre->NgaWalk.clone()), 
+    b(pImuPre->b), 
+    dR(pImuPre->dR.clone()), 
+    dV(pImuPre->dV.clone()),
+    dP(pImuPre->dP.clone()), 
+    JRg(pImuPre->JRg.clone()), 
+    JVg(pImuPre->JVg.clone()), 
+    JVa(pImuPre->JVa.clone()), 
+    JPg(pImuPre->JPg.clone()),
+    JPa(pImuPre->JPa.clone()), 
+    avgA(pImuPre->avgA.clone()), 
+    avgW(pImuPre->avgW.clone()), 
+    bu(pImuPre->bu), 
+    db(pImuPre->db.clone()), 
+    mvMeasurements(pImuPre->mvMeasurements)
 {
 
 }
@@ -259,7 +277,9 @@ void Preintegrated::IntegrateNewMeasurement(const cv::Point3f &acceleration, con
     // Velocity is updated secondly, as it depends on previously computed rotation.
     // Rotation is the last to be updated.
 
-    //Matrices to compute covariance
+    // Matrices to compute covariance
+    // A is Jacobian matrix [dR dV dP] with respect to [dR dV dP], so 
+    // B is Jacobian matrix [dR dV dP] with respect to [bg ba]
     cv::Mat A = cv::Mat::eye(9,9,CV_32F);
     cv::Mat B = cv::Mat::zeros(9,6,CV_32F);
 
@@ -274,9 +294,11 @@ void Preintegrated::IntegrateNewMeasurement(const cv::Point3f &acceleration, con
     dV = dV + dR*acc*dt;
 
     // Compute velocity and position parts of matrices A and B (rely on non-updated delta rotation)
-    cv::Mat Wacc = (cv::Mat_<float>(3,3) << 0, -acc.at<float>(2), acc.at<float>(1),
-                                                   acc.at<float>(2), 0, -acc.at<float>(0),
-                                                   -acc.at<float>(1), acc.at<float>(0), 0);
+    // Wacc is skew matrix of acceleration
+    cv::Mat Wacc = (cv::Mat_<float>(3,3) << 0,                      -acc.at<float>(2),          acc.at<float>(1),
+                                            acc.at<float>(2),       0,                          -acc.at<float>(0),
+                                            -acc.at<float>(1),      acc.at<float>(0),           0);
+    // JVR = ddV_ddR
     A.rowRange(3,6).colRange(0,3) = -dR*dt*Wacc;
     A.rowRange(6,9).colRange(0,3) = -0.5f*dR*dt*dt*Wacc;
     A.rowRange(6,9).colRange(3,6) = cv::Mat::eye(3,3,CV_32F)*dt;
@@ -482,15 +504,19 @@ std::ostream& operator<< (std::ostream &out, const Bias &b)
     return out;
 }
 
-void Calib::Set(const cv::Mat &Tbc_, const float &ng, const float &na, const float &ngw, const float &naw)
+void Calib::Set(const cv::Mat &Tbc_,  // 相机和IMU外参矩阵　
+                const float &ng,      // 陀螺仪噪声标准差 　
+                const float &na,      // 加速度计噪声标准差 　
+                const float &ngw,     // 陀螺仪随机游走标准差 
+                const float &naw)     // 加速度计随机游走标准差
 {
     Tbc = Tbc_.clone();
     Tcb = cv::Mat::eye(4,4,CV_32F);
     Tcb.rowRange(0,3).colRange(0,3) = Tbc.rowRange(0,3).colRange(0,3).t();
     Tcb.rowRange(0,3).col(3) = -Tbc.rowRange(0,3).colRange(0,3).t()*Tbc.rowRange(0,3).col(3);
     Cov = cv::Mat::eye(6,6,CV_32F);
-    const float ng2 = ng*ng;
-    const float na2 = na*na;
+    const float ng2 = ng*ng;  // 陀螺仪方差
+    const float na2 = na*na;  // 加速度计方差
     Cov.at<float>(0,0) = ng2;
     Cov.at<float>(1,1) = ng2;
     Cov.at<float>(2,2) = ng2;

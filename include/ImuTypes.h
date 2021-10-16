@@ -123,19 +123,27 @@ class Calib
     }
 
 public:
-    Calib(const cv::Mat &Tbc_, const float &ng, const float &na, const float &ngw, const float &naw)
+    Calib(const cv::Mat &Tbc_, 
+          const float &ng, 
+          const float &na, 
+          const float &ngw, 
+          const float &naw)
     {
         Set(Tbc_,ng,na,ngw,naw);
     }
     Calib(const Calib &calib);
     Calib(){}
 
-    void Set(const cv::Mat &Tbc_, const float &ng, const float &na, const float &ngw, const float &naw);
+    void Set(const cv::Mat &Tbc_,   // 相机和IMU外参矩阵
+             const float &ng,       // 陀螺仪噪声标准差 
+             const float &na,       // 加速度计噪声标准差 
+             const float &ngw,      // 陀螺仪随机游走标准差 
+             const float &naw);     // 加速度计随机游走标准差
 
 public:
     cv::Mat Tcb;
     cv::Mat Tbc;
-    cv::Mat Cov, CovWalk;
+    cv::Mat Cov, CovWalk; // 噪声协方差矩阵和随机游走协方差矩阵
 };
 
 //Integration of 1 gyro measurement
@@ -234,13 +242,23 @@ public:
 
 public:
     float dT;
-    cv::Mat C;
-    cv::Mat Info;
+    cv::Mat C;    // 15x15 协方差矩阵
+    cv::Mat Info; // 15x15 信息矩阵
+    // Nga -      IMU陀螺仪和加速度计噪声协方差矩阵
+    // NgaWalk -  IMU陀螺仪和加速度计随机游走协方差矩阵 
     cv::Mat Nga, NgaWalk;
 
     // Values for the original bias (when integration was computed)
     Bias b;
+    // dR - delta rotation(3x3)
+    // dV - delta velocity(3x1)
+    // dP - delta position(3x1)
     cv::Mat dR, dV, dP;
+    // JRg - Jacobian of rotation with respect to bg
+    // JVg - Jacobian of velocity with respect to bg
+    // JVa - Jacobian of velocity with respect to ba
+    // JPg - Jacobian of position with respect to bg
+    // JPa - Jacobian of position with respect to ba   
     cv::Mat JRg, JVg, JVa, JPg, JPa;
     cv::Mat avgA;
     cv::Mat avgW;
@@ -253,6 +271,7 @@ private:
     // This is used to compute the updated values of the preintegration
     cv::Mat db;
 
+    // IMU陀螺仪和加速度计的数据
     struct integrable
     {
         integrable(const cv::Point3f &a_, const cv::Point3f &w_ , const float &t_):a(a_),w(w_),t(t_){}

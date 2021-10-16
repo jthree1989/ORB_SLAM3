@@ -705,11 +705,17 @@ class ConstraintPoseImu
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-    ConstraintPoseImu(const Eigen::Matrix3d &Rwb_, const Eigen::Vector3d &twb_, const Eigen::Vector3d &vwb_,
-                       const Eigen::Vector3d &bg_, const Eigen::Vector3d &ba_, const Matrix15d &H_):
-                       Rwb(Rwb_), twb(twb_), vwb(vwb_), bg(bg_), ba(ba_), H(H_)
+    ConstraintPoseImu(const Eigen::Matrix3d &Rwb_,  // 世界坐标系下IMU的旋转矩阵 
+                      const Eigen::Vector3d &twb_,  // 世界坐标系下IMU的平移向量
+                      const Eigen::Vector3d &vwb_,  // 世界坐标系下IMU的速度向量
+                      const Eigen::Vector3d &bg_,   // IMU陀螺仪bias 
+                      const Eigen::Vector3d &ba_,   // IMU加速度计bias  
+                      const Matrix15d &H_)          // 15x15协方差矩阵
+                      :Rwb(Rwb_), twb(twb_), vwb(vwb_), bg(bg_), ba(ba_), H(H_)
     {
-        H = (H+H)/2;
+        // H =(H+H)/2
+        H = (H.eval() + H.transpose().eval()) / 2 ;  // 确保协方差矩阵对称
+        // 确保协方差矩阵半正定
         Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,15,15> > es(H);
         Eigen::Matrix<double,15,1> eigs = es.eigenvalues();
         for(int i=0;i<15;i++)
@@ -717,8 +723,12 @@ public:
                 eigs[i]=0;
         H = es.eigenvectors()*eigs.asDiagonal()*es.eigenvectors().transpose();
     }
-    ConstraintPoseImu(const cv::Mat &Rwb_, const cv::Mat &twb_, const cv::Mat &vwb_,
-                       const IMU::Bias &b, const cv::Mat &H_)
+    // cv::Mat格式构造函数
+    ConstraintPoseImu(const cv::Mat &Rwb_, 
+                      const cv::Mat &twb_, 
+                      const cv::Mat &vwb_,
+                      const IMU::Bias &b, 
+                      const cv::Mat &H_)
     {
         Rwb = Converter::toMatrix3d(Rwb_);
         twb = Converter::toVector3d(twb_);

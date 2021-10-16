@@ -91,6 +91,9 @@ cv::Mat System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const
    ```
    8. `class Frame` -- 图像帧类
       - 成员变量
+        - `ConstraintPoseImu* mpcpi -- [class ConstraintPoseImu]`
+        - `IMU::Calib mImuCalib -- [namespace IMU{ class Calib }]` 
+        - `IMU::Preintegrated* mpImuPreintegrated -- [namespace IMU{ class Preintegrated }]`  
       - 成员函数
         - default constructor `Frame()`
         - copy constructor `Frame(const Frame& frame)`

@@ -73,7 +73,7 @@ Frame::Frame(const cv::Mat &imLeft,               // 左目图像
          mDistCoef(distCoef.clone()),             // 双面矫正后的畸变参数（两相机一样）
          mbf(bf),                                 // 双目基线乘以焦距（stereo baseline times fx）
          mThDepth(thDepth),                       //? 深度阈值（Baseline times）
-         mImuCalib(ImuCalib),                     // IMU内外参及协防差矩阵
+         mImuCalib(ImuCalib),                     // IMU和相机外参、陀螺仪/加速度计噪声协防差矩阵和随机游走协方差矩阵
          mpImuPreintegrated(NULL),                // 储存上一个关键帧到当前帧的IMU预积分
          mpPrevFrame(pPrevF),                     // 上一帧Frame指针
          mpImuPreintegratedFrame(NULL),           // 储存上一个关键帧到上一帧的IMU预积分
